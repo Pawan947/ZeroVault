@@ -333,4 +333,107 @@ router.get("/api/check-permissions", requireLogin, checkSharedAccess, (req, res)
     }
 });
 
+// ---------------- Share Management ----------------
+router.get("/api/my-shares", requireLogin, async (req, res) => {
+    try {
+        const userEmail = req.session.user.email;
+        const folders = [];
+        const links = [];
+
+        // Fetch shared folders
+        const accessSnap = await get(ref(db, "Access"));
+        if (accessSnap.exists()) {
+            for (const [key, entry] of Object.entries(accessSnap.val())) {
+                if (entry.owner === userEmail) {
+                    folders.push({ id: key, ...entry });
+                }
+            }
+        }
+
+        // Fetch shared links
+        const linksSnap = await get(ref(db, "links"));
+        if (linksSnap.exists()) {
+            for (const [key, entry] of Object.entries(linksSnap.val())) {
+                if (entry.owner === userEmail) {
+                    links.push({ id: key, ...entry });
+                }
+            }
+        }
+
+        res.json({ folders, links });
+    } catch (err) {
+        console.error("Fetch My Shares Error:", err);
+        res.status(500).json({ error: "Failed to fetch shares" });
+    }
+});
+
+router.put("/api/my-shares/folder/:id", requireLogin, async (req, res) => {
+    try {
+        const { expiryValue, expiryUnit, permissions } = req.body;
+        const snap = await get(ref(db, "Access/" + req.params.id));
+        if (!snap.exists()) return res.status(404).json({ error: "Share not found" });
+        if (snap.val().owner !== req.session.user.email) return res.status(403).json({ error: "Unauthorized" });
+
+        const updateData = {};
+        if (permissions) updateData.permissions = permissions;
+        if (expiryValue && expiryUnit) {
+            const expirySeconds = parseExpiry(expiryValue, expiryUnit, 3600);
+            updateData.expiryTime = Math.floor(Date.now() / 1000) + expirySeconds;
+        }
+
+        await update(ref(db, "Access/" + req.params.id), updateData);
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.put("/api/my-shares/link/:id", requireLogin, async (req, res) => {
+    try {
+        const { expiryValue, expiryUnit, maxDownloads, perIpLimit } = req.body;
+        const snap = await get(ref(db, "links/" + req.params.id));
+        if (!snap.exists()) return res.status(404).json({ error: "Link not found" });
+        if (snap.val().owner !== req.session.user.email) return res.status(403).json({ error: "Unauthorized" });
+
+        const updateData = {};
+        if (maxDownloads) updateData.maxDownloads = parseInt(maxDownloads, 10);
+        if (perIpLimit) updateData.perIpLimit = parseInt(perIpLimit, 10);
+        if (expiryValue && expiryUnit) {
+            const expirySeconds = parseExpiry(expiryValue, expiryUnit, 3600);
+            updateData.expiryTime = Math.floor(Date.now() / 1000) + expirySeconds;
+        }
+
+        await update(ref(db, "links/" + req.params.id), updateData);
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.delete("/api/my-shares/folder/:id", requireLogin, async (req, res) => {
+    try {
+        const snap = await get(ref(db, "Access/" + req.params.id));
+        if (!snap.exists()) return res.status(404).json({ error: "Not found" });
+        if (snap.val().owner !== req.session.user.email) return res.status(403).json({ error: "Unauthorized" });
+
+        await set(ref(db, "Access/" + req.params.id), null);
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.delete("/api/my-shares/link/:id", requireLogin, async (req, res) => {
+    try {
+        const snap = await get(ref(db, "links/" + req.params.id));
+        if (!snap.exists()) return res.status(404).json({ error: "Not found" });
+        if (snap.val().owner !== req.session.user.email) return res.status(403).json({ error: "Unauthorized" });
+
+        await set(ref(db, "links/" + req.params.id), null);
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 module.exports = router;

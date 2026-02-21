@@ -76,9 +76,20 @@ router.get("/share/:linkId", async (req, res) => {
             else s3Stream.pipe(res);
         }
 
+        const currentLocations = linkData.downloadLocations || [];
+        if (req.query.lat && req.query.lng) {
+            currentLocations.push({
+                ip: clientIp,
+                lat: parseFloat(req.query.lat),
+                lng: parseFloat(req.query.lng),
+                timestamp: Math.floor(Date.now() / 1000)
+            });
+        }
+
         await update(ref(db, "links/" + linkId), {
             downloadsUsed: (linkData.downloadsUsed || 0) + 1,
-            ipDownloads: { ...ipDownloads, [clientIp]: currentIpCount + 1 }
+            ipDownloads: { ...ipDownloads, [clientIp]: currentIpCount + 1 },
+            downloadLocations: currentLocations
         });
     } catch (err) {
         console.error("Shared Link Access Error:", err);
