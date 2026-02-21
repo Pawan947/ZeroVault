@@ -1,0 +1,932 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Storage Dashboard</title>
+    <style>
+        /* CSS Variables for consistency */
+        :root {
+            --primary-bg: #474545;
+            --header-bg: #3a3737;
+            --sidebar-bg: #2a2a2a;
+            --main-bg: #2a2a2a;
+            --alt-bg: #1a1a1a;
+            --border-color: #333;
+            --text-color: #eee;
+            --accent-color: #ffcc00;
+            --button-bg: #c00;
+            --button-hover: #900;
+            --modal-bg: #222;
+            --shadow-color: rgba(255, 0, 0, 0.5);
+            --transition: all 0.3s ease;
+        }
+
+        /* General */
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: var(--primary-bg);
+            color: var(--text-color);
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+
+        header {
+            background: var(--header-bg);
+            padding: 15px;
+            text-align: center;
+            font-size: 22px;
+            font-weight: bold;
+            width: 100%;
+            position: fixed;
+            top: 0;
+            left: 0;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .header-title {
+            margin-left: 10px;
+            flex: 1;
+            text-align: left;
+            color: #fe0000;
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-right: 40px;
+        }
+
+        .user-email {
+            font-size: 14px;
+            margin: 0;
+            color: var(--text-color);
+        }
+
+        .logout {
+            font-size: 14px;
+            padding: 6px 12px;
+            background: var(--button-bg);
+            color: var(--text-color);
+            border-radius: 5px;
+            text-decoration: none;
+            transition: var(--transition);
+        }
+
+        .logout:hover {
+            background: var(--button-hover);
+            box-shadow: 0 0 8px var(--shadow-color);
+        }
+
+        .container {
+            display: flex;
+            margin-top: 70px;
+            width: 100%;
+            flex: 1;
+        }
+
+        .main {
+            flex: 1;
+            padding: 20px;
+            margin-left: 270px;
+            overflow-x: auto;
+            min-height: calc(100vh - 70px);
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 250px;
+            background: var(--sidebar-bg);
+            padding: 20px;
+            position: fixed;
+            top: 70px;
+            bottom: 0;
+            overflow-y: auto;
+            border-right: 1px solid var(--border-color);
+            z-index: 500;
+        }
+
+        .sidebar h2 {
+            margin: 0 0 15px;
+            font-size: 18px;
+            color: var(--accent-color);
+        }
+
+        .step-back-btn {
+            display: block;
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 10px;
+            background: var(--button-bg);
+            color: var(--text-color);
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            text-align: left;
+            transition: var(--transition);
+        }
+
+        .step-back-btn:hover {
+            background: var(--button-hover);
+            box-shadow: 0 0 8px var(--shadow-color);
+        }
+
+        .folder-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            margin: 5px 0;
+            background: var(--alt-bg);
+            border-radius: 5px;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .folder-item:hover {
+            background: var(--main-bg);
+        }
+
+        .folder-item:hover .shared-by {
+            display: block;
+        }
+
+        /* Prevent tooltip from blocking clicks */
+
+        .folder-name {
+            font-weight: bold;
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            max-width: 140px;
+            position: relative;
+            /* required for tooltip */
+        }
+
+        /* Tooltip */
+        .shared-by {
+            pointer-events: none;
+        }
+
+        .folder-name:hover .shared-by {
+            display: block;
+        }
+
+        .folder-actions {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .folder-actions button {
+            padding: 4px 8px;
+            font-size: 12px;
+            margin-left: 5px;
+            background: var(--button-bg);
+            color: var(--text-color);
+            border-radius: 5px;
+            text-decoration: none;
+            transition: var(--transition);
+        }
+
+        .folder-actions a:hover,
+        .folder-actions button:hover {
+            background: var(--button-hover);
+            box-shadow: 0 0 8px var(--shadow-color);
+        }
+
+        .sidebar::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .sidebar::-webkit-scrollbar-track {
+            background: var(--alt-bg);
+        }
+
+        .sidebar::-webkit-scrollbar-thumb {
+            background: var(--accent-color);
+            border-radius: 4px;
+        }
+
+        /* Tables */
+        table {
+           
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+
+        table th,
+        table td {
+            padding: 10px;
+            border: 1px solid var(--border-color);
+            text-align: left;
+        }
+
+        table th {
+            background: var(--modal-bg);
+        }
+
+        table tr:nth-child(even) {
+            background: var(--alt-bg);
+        }
+
+        table tr:nth-child(odd) {
+            background: var(--main-bg);
+        }
+
+        /* Buttons */
+        a.btn,
+        button {
+            display: inline-block;
+            padding: 6px 12px;
+            margin: 2px;
+            font-size: 14px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            text-decoration: none;
+            color: var(--text-color);
+            background: var(--button-bg);
+            transition: var(--transition);
+        }
+
+        a.btn:hover,
+        button:hover {
+            background: var(--button-hover);
+            box-shadow: 0 0 8px var(--shadow-color);
+        }
+
+        /* Upload */
+        .upload {
+            margin-bottom: 20px;
+            background: var(--main-bg);
+            padding: 20px;
+            border-radius: 10px;
+            width: 400px;
+            max-width: 90%;
+        }
+
+        input[type="file"] {
+            display: block;
+            width: 100%;
+            margin: 10px 0;
+            padding: 8px;
+            border-radius: 5px;
+            border: 1px solid var(--border-color);
+            background: var(--alt-bg);
+            color: var(--text-color);
+        }
+
+        input[type="file"]::file-selector-button {
+            background: var(--button-bg);
+            color: var(--text-color);
+            border: none;
+            padding: 6px 12px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        input[type="file"]::file-selector-button:hover {
+            background: var(--button-hover);
+        }
+
+        /* Progress bar */
+        #progressContainer {
+            display: none;
+            margin-top: 10px;
+            background: var(--border-color);
+            border-radius: 5px;
+            overflow: hidden;
+        }
+
+        #progressBar {
+            width: 0%;
+            height: 15px;
+            background: linear-gradient(90deg, var(--accent-color), #ff6600);
+            border-radius: 5px;
+            transition: width 0.2s ease;
+            box-shadow: 0 0 5px var(--accent-color);
+        }
+
+        /* Breadcrumb */
+        .breadcrumb a {
+            color: var(--accent-color);
+            text-decoration: none;
+            margin-right: 5px;
+            transition: var(--transition);
+        }
+
+        .breadcrumb a:hover {
+            text-decoration: underline;
+        }
+
+        /* Inputs */
+        input[type="email"],
+        input[type="number"],
+        select {
+            width: 90%;
+            margin: 5px 0;
+            padding: 6px;
+            border-radius: 5px;
+            border: 1px solid var(--border-color);
+            background: var(--alt-bg);
+            color: var(--text-color);
+        }
+
+        /* Floating button */
+        #createFolderBtn {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: var(--accent-color);
+            color: #000;
+            z-index: 600;
+            transition: var(--transition);
+        }
+
+        #createFolderBtn:hover {
+            background: #e6b800;
+            box-shadow: 0 0 8px var(--accent-color);
+        }
+
+        /* Modal */
+        #shareModal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+        }
+
+        #shareModal .modal-content {
+            background: var(--modal-bg);
+            padding: 20px;
+            border-radius: 10px;
+            width: 350px;
+            max-width: 90%;
+            text-align: center;
+        }
+
+        #folderPermissions {
+            display: none;
+            margin-top: 15px;
+            text-align: left;
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 768px) {
+            .sidebar {
+                width: 200px;
+            }
+
+            .main {
+                margin-left: 220px;
+            }
+
+            .header-right {
+                margin-right: 20px;
+            }
+        }
+
+        @media (max-width: 600px) {
+            .container {
+                flex-direction: column;
+            }
+
+            .sidebar {
+                position: static;
+                width: 100%;
+                border-right: none;
+                border-bottom: 1px solid var(--border-color);
+            }
+
+            .main {
+                margin-left: 0;
+                padding: 10px;
+            }
+
+            .upload {
+                width: 100%;
+            }
+
+            #createFolderBtn {
+                right: 10px;
+                bottom: 10px;
+            }
+
+            .header-right {
+                flex-wrap: wrap;
+                justify-content: center;
+                margin-right: 10px;
+                gap: 5px;
+            }
+
+            .user-email {
+                font-size: 12px;
+            }
+
+            .logout {
+                font-size: 12px;
+                padding: 4px 8px;
+            }
+        }
+
+        #debugConsole {
+            position: fixed;
+            bottom: 60px;
+            right: 20px;
+            width: 300px;
+            max-height: 200px;
+            background: rgba(0, 0, 0, 0.85);
+            color: #0f0;
+            font-family: monospace;
+            font-size: 11px;
+            padding: 10px;
+            border-radius: 5px;
+            overflow-y: auto;
+            z-index: 9999;
+            display: none;
+            border: 1px solid #333;
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+        <div class="header-title"></div>
+        <div class="header-right">
+            <p class="user-email">
+                <%= userEmail %>
+            </p>
+            <a href="/logout" id="btnLogout" class="btn logout">Logout</a>
+        </div>
+    </header>
+
+    <div class="container">
+        <div class="sidebar">
+            <h2>Folders</h2>
+            <% if(currentPath) { %>
+                <button class="step-back-btn">← Step Back</button>
+                <% } %>
+                    <% if(folders.length===0) { %>
+                        <p>No folders</p>
+                        <% } else { %>
+                            <% folders.forEach(f=> { %>
+                                <div class="folder-item" data-folder="<%= f.name %>">
+                                    <span class="folder-name">
+                                        <%= f.name %>
+                                            <%= f.isShared ? "(Shared)" : "" %>
+                                                <% if(f.isShared) { %>
+                                                    <span class="shared-by" data-share-id="<%= f.shareId %>">
+                                                        Shared by
+                                                        <%= f.owner %>
+                                                    </span>
+                                                    <% } %>
+                                    </span>
+                                    <div class="folder-actions">
+                                        <% if(!f.isShared) { %>
+                                            <a class="btn delete-folder" data-name="<%= f.name %>">Delete</a>
+                                            <% if (!sharedId) { %>
+                                                <button class="btn share-folder"
+                                                    data-name="<%= f.name %>">Share</button>
+                                                <% } %>
+                                                    <% } else { %>
+                                                        <a class="btn delete-folder"
+                                                            data-name="<%= f.name %>">Delete</a>
+                                                        <% } %>
+                                    </div>
+                                </div>
+                                <% }) %>
+                                    <% } %>
+        </div>
+
+        <div class="main">
+            <div class="breadcrumb">
+                <a href="<%= (sharedId && sharedId !== 'undefined') ? '/?sharedId='+sharedId : '/' %>">Home</a>
+                <% const parts=(currentPath || "" ).split("/").filter(Boolean); %>
+                    <% let accumulated="" ; %>
+                        <% parts.forEach((p,i)=>{ accumulated+=p+"/" ; %>
+                            / <a
+                                href="<%= (sharedId && sharedId !== 'undefined') ? '/?sharedId='+sharedId+'&path='+encodeURIComponent(accumulated) : '/?path='+encodeURIComponent(accumulated) %>">
+                                <%= p %>
+                            </a>
+                            <% }) %>
+            </div>
+
+            <div class="upload" id="uploadSection">
+                <h3>Upload New File</h3>
+                <input type="file" id="fileInput" required>
+                <button id="uploadBtn">Upload</button>
+                <div id="progressContainer">
+                    <div id="progressBar"></div>
+                </div>
+            </div>
+
+            <h2>Files</h2>
+            <table>
+                <tr>
+                    <th>Filename</th>
+                    <th>Size</th>
+                    <th>Last Modified</th>
+                    <th>Actions</th>
+                </tr>
+                <% if(files.length===0){ %>
+                    <tr>
+                        <td colspan="4" style="text-align:center;">No files uploaded yet.</td>
+                    </tr>
+                    <% } else { %>
+                        <% files.forEach(f=> { %>
+                            <tr>
+                                <td>
+                                    <%= f.name %>
+                                </td>
+                                <td>
+                                    <%= f.size %>
+                                </td>
+                                <td>
+                                    <%= f.lastModified %>
+                                </td>
+                                <td>
+                                    <a class="btn download-file" data-name="<%= f.name %>">Download</a>
+                                    <a class="btn delete-file" data-name="<%= f.name %>">Delete</a>
+                                    <% if (!sharedId) { %>
+                                        <button class="btn share-file" data-name="<%= f.name %>">Share</button>
+                                        <% } %>
+                                </td>
+                            </tr>
+                            <% }) %>
+                                <% } %>
+            </table>
+        </div>
+    </div>
+
+    <button id="createFolderBtn">+ Folder</button>
+
+    <div id="shareModal">
+        <div class="modal-content">
+            <h3>Share</h3>
+            <p id="modalFilename"></p>
+            <label>Expiry Value:</label><input type="number" id="expiryValueInput" min="1" value="5"><br>
+            <label>Unit:</label>
+            <select id="expiryUnitSelect">
+                <option value="m">Minutes</option>
+                <option value="h">Hours</option>
+                <option value="d">Days</option>
+            </select><br>
+
+            <div id="fileShareOptions">
+                <label>Max Downloads:</label>
+                <input type="number" id="maxDownloadsInput" min="1" value="3"><br>
+                <label>IP Limit:</label>
+                <input type="number" id="perIpLimitInput" min="1" value="2"><br>
+            </div>
+
+            <label>Geofence:</label>
+            <input type="checkbox" id="geofenceCheckbox"><br>
+            <div id="geofenceOptions" style="display:none; text-align: left; padding-left: 10%;">
+                <label>Radius (km):</label>
+                <input type="number" id="radiusInput" min="1" value="5"><br>
+            </div>
+
+            <div id="folderPermissions">
+                <h4>Folder Permissions:</h4>
+                <label><input type="checkbox" id="permDownload" checked> Download files</label><br>
+                <label><input type="checkbox" id="permUpload" checked> Upload files</label><br>
+                <label><input type="checkbox" id="permDelete" checked> Delete files</label><br>
+                <label>Recipient Email:</label>
+                <input type="email" id="recipientEmailInput" placeholder="user@example.com" required><br>
+            </div>
+
+            <button id="confirmShareBtn" class="btn">Share</button>
+            <button id="closeShareBtn" class="btn" style="background:#555;">Cancel</button>
+        </div>
+    </div>
+
+    <div id="debugConsole"></div>
+
+    <script>
+        function debugLog(msg) {
+            console.log("[DEBUG]", msg);
+            const consoleEl = document.getElementById('debugConsole');
+            consoleEl.style.display = 'block';
+            const logEntry = document.createElement('div');
+            logEntry.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+            consoleEl.appendChild(logEntry);
+            consoleEl.scrollTop = consoleEl.scrollHeight;
+        }
+
+        const currentPath = "<%= currentPath || '' %>";
+        const sharedId = "<%= sharedId || '' %>";
+
+        // Permission check for shared folders
+        if (sharedId && sharedId !== "undefined" && sharedId !== "") {
+            fetch(`/api/check-permissions?sharedId=${encodeURIComponent(sharedId)}`)
+                .then(res => res.json())
+                .then(data => {
+                    if (!data.upload) {
+                        document.getElementById('uploadSection').style.display = 'none';
+                        document.getElementById('createFolderBtn').style.display = 'none';
+                    }
+                    if (!data.delete) {
+                        document.querySelectorAll('.delete-file, .delete-folder').forEach(btn => {
+                            btn.style.display = 'none';
+                        });
+                    }
+                    if (!data.download) {
+                        document.querySelectorAll('.download-file').forEach(btn => {
+                            btn.style.display = 'none';
+                        });
+                    }
+                })
+                .catch(err => console.error('Permission check failed:', err));
+        }
+
+        // Upload
+        const uploadBtn = document.getElementById('uploadBtn');
+        const fileInput = document.getElementById('fileInput');
+        const progressContainer = document.getElementById('progressContainer');
+        const progressBar = document.getElementById('progressBar');
+
+        uploadBtn.addEventListener('click', async () => {
+            if (!fileInput.files.length) return alert("Select a file first!");
+            const file = fileInput.files[0];
+
+            try {
+                uploadBtn.disabled = true;
+                uploadBtn.textContent = "Uploading...";
+                progressBar.style.width = '0%';
+                progressContainer.style.display = 'block';
+
+                let dataToUpload = file;
+                debugLog(`Init upload: ${file.name} (${file.size} bytes)`);
+
+                // 1) Request presigned URL from backend
+                debugLog("Requesting presigned URL...");
+                const presignRes = await fetch(`/upload?path=${encodeURIComponent(currentPath)}&sharedId=${encodeURIComponent(sharedId)}`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        fileName: file.name,
+                        contentType: dataToUpload.type
+                    })
+                });
+                if (!presignRes.ok) {
+                    const errorText = await presignRes.text();
+                    throw new Error(`Failed to get upload URL: ${errorText}`);
+                }
+
+                const { uploadUrl, key } = await presignRes.json();
+                debugLog("Got upload URL. Starting S3 PUT...");
+
+                // 2) Upload file directly to S3
+                const xhr = new XMLHttpRequest();
+                xhr.open('PUT', uploadUrl, true);
+                xhr.setRequestHeader('Content-Type', 'application/octet-stream');
+                debugLog("PUT Content-Type: application/octet-stream");
+
+                xhr.upload.onprogress = function (e) {
+                    if (e.lengthComputable) {
+                        const percent = (e.loaded / e.total) * 100;
+                        progressBar.style.width = percent + '%';
+                        uploadBtn.textContent = `Uploading... ${Math.round(percent)}%`;
+                    }
+                };
+
+                xhr.onload = async function () {
+                    if (xhr.status === 200 || xhr.status === 204) {
+                        debugLog("S3 PUT Success!");
+                        uploadBtn.textContent = 'Upload Complete!';
+                        try {
+                            debugLog("Calling /upload/complete...");
+                            await fetch('/upload/complete', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ key })
+                            });
+                            debugLog("Upload flow finished.");
+                        } catch (e) {
+                            debugLog(`Complete call failed: ${e.message}`);
+                        }
+                        setTimeout(() => location.reload(), 1200);
+                    } else {
+                        debugLog(`S3 PUT Failed. Status: ${xhr.status}`);
+                        console.error("S3 Upload Failed:", xhr.status, xhr.responseText);
+                        alert("S3 Upload failed. Status: " + xhr.status);
+                        uploadBtn.disabled = false;
+                        uploadBtn.textContent = 'Upload';
+                    }
+                };
+
+                xhr.onerror = function () {
+                    debugLog("S3 PUT Network Error.");
+                    alert("Network error during S3 upload. Check your connection.");
+                    uploadBtn.disabled = false;
+                    uploadBtn.textContent = 'Upload';
+                };
+                xhr.send(dataToUpload);
+
+            } catch (err) {
+                console.error(err);
+                alert("Error: " + err.message);
+                uploadBtn.disabled = false;
+                uploadBtn.textContent = 'Upload';
+            }
+        });
+
+        // Share modal logic
+        let currentFileToShare = null,
+            currentFolderToShare = null;
+
+        function openShareModal(name, isFolder = false) {
+            document.getElementById('modalFilename').textContent = name;
+            currentFileToShare = isFolder ? null : name;
+            currentFolderToShare = isFolder ? name : null;
+            document.getElementById('folderPermissions').style.display = isFolder ? 'block' : 'none';
+            document.getElementById('fileShareOptions').style.display = isFolder ? 'none' : 'block';
+            document.getElementById('shareModal').style.display = 'flex';
+        }
+
+        function closeShareModal() {
+            document.getElementById('shareModal').style.display = 'none';
+        }
+
+        document.getElementById('closeShareBtn').addEventListener('click', closeShareModal);
+
+        document.getElementById('geofenceCheckbox').addEventListener('change', (e) => {
+            document.getElementById('geofenceOptions').style.display = e.target.checked ? 'block' : 'none';
+        });
+
+        document.getElementById('confirmShareBtn').addEventListener('click', async () => {
+            const expiryValue = document.getElementById('expiryValueInput').value;
+            const expiryUnit = document.getElementById('expiryUnitSelect').value;
+            const useGeofence = document.getElementById('geofenceCheckbox').checked;
+            const radiusKm = document.getElementById('radiusInput').value;
+
+            if (!expiryValue || !expiryUnit) {
+                alert('Fill all fields');
+                return;
+            }
+            closeShareModal();
+
+            let url;
+            let queryParams = new URLSearchParams();
+            queryParams.append('expiryValue', expiryValue);
+            queryParams.append('expiryUnit', expiryUnit);
+
+            if (useGeofence) {
+                try {
+                    const pos = await new Promise((resolve, reject) => {
+                        navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true });
+                    });
+                    queryParams.append('userLat', pos.coords.latitude);
+                    queryParams.append('userLng', pos.coords.longitude);
+                    queryParams.append('radiusKm', radiusKm);
+                } catch (err) {
+                    alert("⚠️ Geolocation permission denied or failed. Sharing without geofence.");
+                    // Continue without geofence parameters
+                }
+            }
+
+            if (currentFileToShare) {
+                const maxDownloads = document.getElementById('maxDownloadsInput').value;
+                const perIpLimit = document.getElementById('perIpLimitInput').value;
+                queryParams.append('max', maxDownloads);
+                queryParams.append('perIpLimit', perIpLimit);
+                queryParams.append('path', currentPath);
+                url = `/api/share/${encodeURIComponent(currentFileToShare)}?${queryParams.toString()}`;
+            } else if (currentFolderToShare) {
+                const permDownload = document.getElementById('permDownload').checked;
+                const permUpload = document.getElementById('permUpload').checked;
+                const permDelete = document.getElementById('permDelete').checked;
+                const recipientEmail = document.getElementById('recipientEmailInput').value;
+
+                if (!recipientEmail) {
+                    alert('Recipient email is required for folder sharing');
+                    return;
+                }
+
+                queryParams.append('accessEmail', encodeURIComponent(recipientEmail));
+                queryParams.append('permDownload', permDownload);
+                queryParams.append('permUpload', permUpload);
+                queryParams.append('permDelete', permDelete);
+                url = `/api/access/${currentFolderToShare}?${queryParams.toString()}`;
+            }
+
+            try {
+                const res = await fetch(url);
+                const data = await res.json();
+                if (data.shareId) {
+                    if (currentFileToShare) {
+                        const shareUrl = `${window.location.origin}/share/${data.shareId}`;
+                        await navigator.clipboard.writeText(shareUrl);
+                        alert("✅ File link created & copied:\n" + shareUrl);
+                    } else {
+                        alert(`✅ Folder shared successfully with ${document.getElementById('recipientEmailInput').value}`);
+                    }
+                    location.reload();
+                } else {
+                    alert("❌ Error sharing: " + data.error);
+                }
+            } catch (err) {
+                alert("⚠️ " + err.message);
+            }
+        });
+
+        // Folder button
+        document.getElementById('createFolderBtn').addEventListener('click', () => {
+            const folderName = prompt("Enter folder name:")?.trim();
+            if (!folderName) return;
+
+            let url = `/folder/create`;
+            const params = new URLSearchParams();
+
+            if (currentPath) params.append('path', currentPath);
+            if (sharedId && sharedId !== 'undefined') params.append('sharedId', sharedId);
+
+            if (params.toString()) {
+                url += '?' + params.toString();
+            }
+
+            fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                body: `folderName=${encodeURIComponent(folderName)}`
+            }).then(res => {
+                if (res.ok) location.reload();
+                else alert('Failed to create folder');
+            }).catch(err => alert('Error: ' + err.message));
+        });
+
+        // Event delegation for folder/file actions
+        document.addEventListener('click', e => {
+            // Handle step back button
+            if (e.target.classList.contains('step-back-btn')) {
+                const pathParts = currentPath.split('/').filter(Boolean);
+                pathParts.pop();
+                const parentPath = pathParts.join('/') + (pathParts.length ? '/' : '');
+                const url = sharedId && sharedId !== 'undefined' ?
+                    `/?sharedId=${encodeURIComponent(sharedId)}&path=${encodeURIComponent(parentPath)}` :
+                    `/?path=${encodeURIComponent(parentPath)}`;
+                window.location = url;
+            }
+            // Handle folder clicks in sidebar
+            else if (e.target.closest('.folder-item') &&
+                (e.target.classList.contains('folder-name') ||
+                    e.target.closest('.folder-item').querySelector('.folder-name') === e.target) &&
+                !e.target.classList.contains('shared-by')) {
+                const folderItem = e.target.closest('.folder-item');
+                const folder = folderItem.dataset.folder;
+
+                if (sharedId && sharedId !== 'undefined') {
+                    const url = `/?sharedId=${encodeURIComponent(sharedId)}&path=${encodeURIComponent(currentPath + folder + '/')}`;
+                    window.location = url;
+                } else {
+                    const shareIdElement = folderItem.querySelector('span[data-share-id]');
+                    if (shareIdElement) {
+                        const shareId = shareIdElement.getAttribute('data-share-id');
+                        const url = `/?sharedId=${encodeURIComponent(shareId)}`;
+                        window.location = url;
+                    } else {
+                        const url = `/?path=${encodeURIComponent(currentPath + folder + '/')}`;
+                        window.location = url;
+                    }
+                }
+            }
+            // Handle file and folder actions
+            else if (e.target.classList.contains('share-file')) {
+                openShareModal(e.target.dataset.name, false);
+            } else if (e.target.classList.contains('share-folder')) {
+                openShareModal(e.target.dataset.name, true);
+            } else if (e.target.classList.contains('delete-folder')) {
+                if (confirm('Delete this folder?')) {
+                    window.location = `/delete/${e.target.dataset.name}?path=${currentPath}${sharedId ? '&sharedId=' + sharedId : ''}`;
+                }
+            } else if (e.target.classList.contains('delete-file')) {
+                if (confirm('Delete this file?')) {
+                    window.location = `/delete/${e.target.dataset.name}?path=${currentPath}${sharedId ? '&sharedId=' + sharedId : ''}`;
+                }
+            } else if (e.target.classList.contains('download-file')) {
+                const filename = e.target.dataset.name;
+                window.location = `/download/${filename}?path=${currentPath}${sharedId ? '&sharedId=' + sharedId : ''}`;
+            }
+        });
+    </script>
+</body>
+
+</html>

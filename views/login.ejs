@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Secure Access Terminal</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    :root {
+      --accent: #ef0808;
+      --danger: #ff3b3b;
+      --panel: #0b0f14;
+      --border: #1f2a33;
+      --text: #c52323;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: #05080c;
+      color: var(--text);
+      font-family: Consolas, monospace;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* Top Bar */
+    #nav {
+      height: clamp(50px, 6vh, 70px);
+      background: #0a0f14;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      padding: 0 2vw;
+      letter-spacing: 2px;
+      font-size: clamp(12px, 1.2vw, 16px);
+      z-index: 10;
+    }
+
+    /* Layout */
+    #main {
+      flex: 1;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: clamp(20px, 5vw, 80px);
+      padding: 5vh 5vw;
+      flex-wrap: wrap;
+      position: relative;
+      z-index: 5;
+
+    }
+
+    /* Login */
+    #cred {
+      width: clamp(280px, 30vw, 400px);
+      background: var(--panel);
+      padding: clamp(20px, 3vw, 35px);
+      border: 1px solid var(--border);
+      display: flex;
+      margin-bottom: 250px;
+      flex-direction: column;
+      gap: clamp(12px, 2vh, 18px);
+      box-shadow: 0 0 40px rgba(0, 0, 0, 0.5);
+    }
+
+    #cred input {
+      background: #0e141a;
+      border: 1px solid var(--border);
+      padding: clamp(10px, 1.2vw, 14px);
+      color: var(--text);
+      font-family: Consolas, monospace;
+      font-size: clamp(12px, 1vw, 15px);
+      width: 100%;
+    }
+
+    #cred input:focus {
+      border: 1px solid var(--accent);
+      outline: none;
+    }
+
+    #cred button {
+      padding: clamp(10px, 1.5vw, 14px);
+      background: transparent;
+      border: 1px solid var(--accent);
+      color: var(--accent);
+      cursor: pointer;
+      font-family: Consolas, monospace;
+      font-size: clamp(12px, 1vw, 14px);
+      transition: .3s;
+      width: 100%;
+    }
+
+    #cred button:hover {
+      background: var(--accent);
+      color: #000;
+    }
+
+    .error {
+      color: var(--danger);
+      background: rgba(255, 59, 59, 0.1);
+      padding: 10px;
+      border: 1px solid var(--danger);
+      font-size: 12px;
+      text-align: center;
+    }
+
+    /* DNA */
+    .dna {
+      width: clamp(200px, 20vw, 260px);
+      height: clamp(800px, 100vh, 1500px);
+      perspective: 1000px;
+      position: relative;
+      opacity: 0.9;
+      transform: rotate(40deg);
+
+    }
+
+    .base {
+      position: absolute;
+      width: 100%;
+      height: 20px;
+      transform-style: preserve-3d;
+      animation: spin 10s linear infinite;
+      margin-bottom: 0px;
+    }
+
+    .dot {
+      position: absolute;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      top: 0;
+      background: var(--accent);
+    }
+
+    .left {
+      left: 20%;
+    }
+
+    .right {
+      right: 20%;
+    }
+
+    .connector {
+      position: absolute;
+      top: 3px;
+      left: 25%;
+      width: 50%;
+      height: 2px;
+      background: var(--accent);
+      opacity: .3;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotateY(360deg);
+      }
+    }
+
+    /* Hide DNA on small screens */
+    @media (max-width:768px) {
+      .dna {
+        display: none;
+      }
+    }
+
+    /* Popup */
+    #popupOverlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, .85);
+      backdrop-filter: blur(4px);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+      z-index: 100;
+    }
+
+    #popupOverlay.active {
+      display: flex;
+    }
+
+    #popupBox {
+      width: clamp(300px, 40vw, 500px);
+      background: var(--panel);
+      border: 1px solid var(--border);
+      padding: clamp(20px, 3vw, 40px);
+      box-shadow: 0 0 30px rgba(0, 255, 157, .1);
+    }
+
+    #popupBox h2 {
+      margin: 0 0 15px;
+      font-size: clamp(14px, 1.2vw, 18px);
+      letter-spacing: 2px;
+    }
+
+    #status {
+      font-size: clamp(12px, 1vw, 14px);
+      opacity: .7;
+      margin-bottom: 20px;
+    }
+
+    /* Hardware */
+    .hardware {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+      justify-content: center;
+    }
+
+    .device {
+      flex: 1 1 150px;
+      border: 1px solid var(--border);
+      padding: 20px;
+      text-align: center;
+      cursor: pointer;
+      transition: .3s;
+    }
+
+    .device:hover {
+      border: 1px solid var(--accent);
+    }
+
+    .device.active {
+      border: 1px solid var(--accent);
+      box-shadow: 0 0 15px rgba(0, 255, 157, .3);
+    }
+
+    .device-title {
+      font-size: clamp(10px, 1vw, 13px);
+      margin-bottom: 10px;
+      letter-spacing: 1px;
+    }
+
+    .usb-slot {
+      width: 50px;
+      height: 20px;
+      margin: 0 auto;
+      border: 2px solid var(--accent);
+    }
+
+    .scanner {
+      width: 50px;
+      height: 50px;
+      margin: 0 auto;
+      border: 2px solid var(--accent);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .scan-line {
+      position: absolute;
+      width: 100%;
+      height: 3px;
+      background: var(--accent);
+      top: -10px;
+      animation: scan 2s linear infinite;
+    }
+
+    @keyframes scan {
+      to {
+        top: 100%;
+      }
+    }
+
+    .loader {
+      margin-top: 20px;
+      height: 2px;
+      background: var(--accent);
+      width: 0%;
+      transition: width 2s linear;
+    }
+
+    #cancelBtn {
+      margin-top: 25px;
+      padding: 10px;
+      background: transparent;
+      border: 1px solid var(--danger);
+      color: var(--danger);
+      cursor: pointer;
+      width: 100%;
+      font-family: Consolas, monospace;
+    }
+  </style>
+</head>
+
+<body>
+
+  <div id="nav">
+    <i class="fas fa-shield-alt" style="font-size: 40px; color: var(--accent); margin-bottom: 10px;"></i>
+    ZERO VAULT
+  </div>
+
+  <div id="main">
+    <div id="cred">
+      <div id="branding" style="text-align:center; margin-bottom: 15px;">
+
+        <div style="font-size: 18px; letter-spacing: 2px;">AUTHENTICATION</div>
+      </div>
+
+      <% if (error) { %>
+        <div class="error">
+          <%= error %>
+        </div>
+        <% } %>
+
+          <form action="/login" method="POST" id="loginForm">
+            <div style="display:flex; flex-direction:column; gap: 15px;">
+              <input type="email" name="email" placeholder="IDENTITY ID" required>
+              <input type="password" name="password" placeholder="ACCESS CODE" required>
+              <button type="submit" id="startBtn">INITIATE AUTH</button>
+            </div>
+          </form>
+
+          <div style="margin: 5px 0; text-align: center; font-size: 10px; opacity: 0.5;">SECURE CONNECTION ESTABLISHED
+          </div>
+          <div style="text-align: center; margin-top: 10px;">
+            <a href="/register" style="color: var(--accent); text-decoration: none; font-size: 12px;">NEW OPERATOR?
+              REGISTER IDENTITY</a>
+          </div>
+
+
+    </div>
+    <div class="dna" id="dna"></div>
+  </div>
+
+  <div id="popupOverlay">
+    <div id="popupBox">
+      <h2>PASSKEY AUTHENTICATION</h2>
+      <div id="status">Awaiting hardware interaction...</div>
+
+      <div class="hardware">
+        <div class="device" id="usbDevice">
+          <div class="device-title">USB SECURITY TOKEN</div>
+          <div class="usb-slot"></div>
+        </div>
+
+        <div class="device" id="bioDevice">
+          <div class="device-title">BIOMETRIC SCANNER</div>
+          <div class="scanner">
+            <div class="scan-line"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="loader" id="loaderBar"></div>
+      <button id="cancelBtn">ABORT</button>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/@simplewebauthn/browser/dist/bundle/index.umd.min.js"></script>
+  <script>
+    const dnaContainer = document.getElementById("dna");
+    for (let i = 0; i < 18; i++) {
+      const base = document.createElement("div");
+      base.className = "base";
+      base.style.top = `${i * 5}%`;
+      base.style.animationDelay = `${i * .3}s`;
+      base.innerHTML = `
+    <div class="dot left"></div>
+    <div class="connector"></div>
+    <div class="dot right"></div>
+  `;
+      dnaContainer.appendChild(base);
+    }
+
+    const { startAuthentication } = SimpleWebAuthnBrowser;
+    const overlay = document.getElementById("popupOverlay");
+    const usbDevice = document.getElementById("usbDevice");
+    const bioDevice = document.getElementById("bioDevice");
+    const loaderBar = document.getElementById("loaderBar");
+    const statusText = document.getElementById("status");
+    const loginForm = document.getElementById('loginForm');
+    const startBtn = document.getElementById('startBtn');
+
+    // Show the popup overlay
+    function showPopup() {
+      overlay.classList.add("active");
+      statusText.textContent = "Awaiting hardware interaction...";
+      loaderBar.style.width = "0%";
+      usbDevice.classList.remove("active");
+      bioDevice.classList.remove("active");
+    }
+
+    // Close the popup overlay
+    function closePopup() {
+      overlay.classList.remove("active");
+      loaderBar.style.width = "0%";
+    }
+
+    // This handles the actual authentication logic
+    async function performAuthentication(device) {
+      if (!loginForm.checkValidity()) {
+        loginForm.reportValidity();
+        closePopup();
+        return;
+      }
+
+      try {
+        // Visual feedback
+        usbDevice.classList.remove("active");
+        bioDevice.classList.remove("active");
+        if (device) device.classList.add("active");
+
+        statusText.textContent = "Handshaking with Zero Vault...";
+        loaderBar.style.transition = "width 2s linear";
+        loaderBar.style.width = "50%"; // Mid-point for first factor
+
+        const formData = new FormData(loginForm);
+        const data = Object.fromEntries(formData.entries());
+
+        // Step 1: Standard Login check
+        const resp = await fetch('/login', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Accept': 'application/json'
+          },
+          body: new URLSearchParams(data)
+        });
+
+        const result = await resp.json();
+
+        if (result.success) {
+          statusText.textContent = "Identity verified. Accessing...";
+          loaderBar.style.width = "100%";
+          setTimeout(() => window.location.href = '/', 1000);
+        } else if (result.mfaRequired) {
+          // Step 2: WebAuthn MFA if required
+          statusText.textContent = "Identity verified. Awaiting Passkey...";
+          loaderBar.style.width = "75%";
+
+          const optsResp = await fetch('/api/webauthn/login-options');
+          const opts = await optsResp.json();
+          if (opts.error) throw new Error(opts.error);
+
+          const asseResp = await startAuthentication({ optionsJSON: opts });
+
+          const verifyResp = await fetch('/api/webauthn/login-verify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(asseResp),
+          });
+
+          const verifyResult = await verifyResp.json();
+
+          if (verifyResult.verified) {
+            statusText.textContent = "Multi-factor authentication complete.";
+            loaderBar.style.width = "100%";
+            setTimeout(() => window.location.href = '/', 1000);
+          } else {
+            throw new Error(verifyResult.error || "Passkey verification failed");
+          }
+        } else {
+          throw new Error(result.error || "Invalid credentials");
+        }
+      } catch (err) {
+        console.error(err);
+        statusText.textContent = "ERROR: " + err.message;
+        loaderBar.style.width = "0%";
+        if (err.name !== 'AbortError') {
+          setTimeout(() => alert("Access Denied: " + err.message), 500);
+        }
+      }
+    }
+
+    // Wire up events
+    startBtn.onclick = (e) => {
+      e.preventDefault();
+      if (loginForm.checkValidity()) {
+        showPopup();
+      } else {
+        loginForm.reportValidity();
+      }
+    };
+
+    usbDevice.onclick = () => performAuthentication(usbDevice);
+    bioDevice.onclick = () => performAuthentication(bioDevice);
+    document.getElementById("cancelBtn").onclick = closePopup;
+
+
+
+  </script>
+
+</body>
+
+</html>
