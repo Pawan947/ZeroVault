@@ -2,7 +2,7 @@ require("dotenv").config();
 const express = require("express");
 const bodyParser = require("body-parser");
 const cookieParser = require("cookie-parser");
-const session = require("express-session");
+const session = require("cookie-session");
 const path = require("path");
 
 const app = express();
@@ -13,15 +13,20 @@ app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.json());
 app.use(cookieParser());
 app.use(session({
-    secret: process.env.SESSION_SECRET || "supersecret",
-    resave: false,
-    saveUninitialized: false,
-    cookie: {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        maxAge: 24 * 60 * 60 * 1000 // 24 hours
-    }
+    name: 'session',
+    keys: [process.env.SESSION_SECRET || "supersecret"],
+    maxAge: 24 * 60 * 60 * 1000, // 24 hours
+    secure: process.env.NODE_ENV === "production",
+    httpOnly: true
 }));
+
+app.use((req, res, next) => {
+    // Mock save function for express-session compatibility
+    if (req.session && !req.session.save) {
+        req.session.save = (cb) => { if (cb) cb(); };
+    }
+    next();
+});
 
 app.set("view engine", "ejs");
 app.set("views", path.join(__dirname, "views"));
@@ -32,7 +37,7 @@ app.use((req, res, next) => {
     res.header("Access-Control-Allow-Origin", "*");
     res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
     res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization");
-    res.header("Cross-Origin-Opener-Policy", "unsafe-none");
+    res.header("Cross-Origin-Opener-Policy", "same-origin-allow-popups");
     res.header("Cross-Origin-Embedder-Policy", "unsafe-none");
     if (req.method === "OPTIONS") return res.status(200).end();
     next();

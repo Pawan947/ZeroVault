@@ -95,22 +95,7 @@ router.post("/register", async (req, res) => {
             });
         }
 
-        const emailValidator = require('deep-email-validator');
-        const validationResult = await emailValidator.validate(email);
 
-        if (!validationResult.valid) {
-            const errorMessage = "Email verification failed: This email address does not appear to exist or be active.";
-            if (req.headers.accept && req.headers.accept.includes("application/json")) {
-                return res.status(400).json({ error: errorMessage });
-            }
-            return res.render("register", {
-                error: errorMessage,
-                firebaseConfig: {
-                    apiKey: process.env.FIREBASE_API_KEY,
-                    authDomain: process.env.FIREBASE_AUTH_DOMAIN
-                }
-            });
-        }
 
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         const user = userCredential.user;
@@ -135,7 +120,10 @@ router.post("/register", async (req, res) => {
     }
 });
 
-router.get("/logout", (req, res) => req.session.destroy(() => res.redirect("/login")));
+router.get("/logout", (req, res) => {
+    req.session = null;
+    res.redirect("/login");
+});
 
 router.post("/auth/google", async (req, res) => {
     try {
