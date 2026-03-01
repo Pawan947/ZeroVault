@@ -97,6 +97,11 @@ router.get("/share/:linkId", async (req, res) => {
             ipDownloads: { ...ipDownloads, [clientIp]: currentIpCount + 1 },
             downloadLocations: currentLocations
         });
+
+        await new Promise((resolve, reject) => {
+            res.on("finish", resolve);
+            res.on("error", reject);
+        });
     } catch (err) {
         console.error("Shared Link Access Error:", err);
         res.status(500).send("Failed to access shared file");
