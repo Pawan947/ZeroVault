@@ -8,11 +8,14 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         :root {
-            --accent: #ef0808;
-            --danger: #ff3b3b;
-            --panel: #0b0f14;
-            --border: #1f2a33;
-            --text: #c52323;
+            --tactical-bg: #050709;
+            --tactical-panel: #0a0d12;
+            --tactical-border: #1a222c;
+            --tactical-accent: #00ff66;
+            --tactical-accent-dim: rgba(0, 255, 102, 0.15);
+            --tactical-text: #8b9eb3;
+            --tactical-text-bright: #e2e8f0;
+            --tactical-danger: #ff3333;
         }
 
         * {
@@ -21,167 +24,145 @@
 
         body {
             margin: 0;
-            background: #05080c;
-            color: var(--text);
-            font-family: Consolas, monospace;
+            background: var(--tactical-bg);
+            color: var(--tactical-text);
+            font-family: 'Courier New', Courier, monospace;
             min-height: 100vh;
             display: flex;
             flex-direction: column;
             overflow: hidden;
+            background-image: linear-gradient(rgba(0, 255, 102, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 255, 102, 0.03) 1px, transparent 1px);
+            background-size: 40px 40px;
         }
 
-        /* Top Bar */
         #nav {
-            height: clamp(50px, 6vh, 70px);
-            background: #0a0f14;
-            border-bottom: 1px solid var(--border);
+            height: 60px;
+            background: var(--tactical-panel);
+            border-bottom: 1px solid var(--tactical-border);
             display: flex;
             align-items: center;
             padding: 0 2vw;
-            letter-spacing: 2px;
-            font-size: clamp(12px, 1.2vw, 16px);
+            font-size: 14px;
+            letter-spacing: 3px;
+            color: var(--tactical-accent);
+            text-transform: uppercase;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
             z-index: 10;
         }
 
-        /* Layout */
         #main {
             flex: 1;
             display: flex;
-            justify-content: space-between;
-            align-items: center;
-            gap: clamp(20px, 5vw, 80px);
-            padding: 5vh 5vw;
-            flex-wrap: wrap;
-            position: relative;
-            z-index: 5;
-
-        }
-
-        /* Registration */
-        #cred {
-            width: clamp(280px, 30vw, 400px);
-            background: var(--panel);
-            padding: clamp(20px, 3vw, 35px);
-            border: 1px solid var(--border);
-            display: flex;
-            margin-bottom: 250px;
-            flex-direction: column;
-            gap: clamp(12px, 2vh, 18px);
-            box-shadow: 0 0 40px rgba(0, 0, 0, 0.5);
-        }
-
-        #cred input {
-            background: #0e141a;
-            border: 1px solid var(--border);
-            padding: clamp(10px, 1.2vw, 14px);
-            color: var(--text);
-            font-family: Consolas, monospace;
-            font-size: clamp(12px, 1vw, 15px);
-            width: 100%;
-        }
-
-        #cred input:focus {
-            border: 1px solid var(--accent);
-            outline: none;
-        }
-
-        #cred button {
-            padding: clamp(10px, 1.5vw, 14px);
-            background: transparent;
-            border: 1px solid var(--accent);
-            color: var(--accent);
-            cursor: pointer;
-            font-family: Consolas, monospace;
-            font-size: clamp(12px, 1vw, 14px);
-            transition: .3s;
-            width: 100%;
-        }
-
-        #cred button:hover {
-            background: var(--accent);
-            color: #000;
-        }
-
-        .error {
-            color: var(--danger);
-            background: rgba(255, 59, 59, 0.1);
-            padding: 10px;
-            border: 1px solid var(--danger);
-            font-size: 12px;
-            text-align: center;
-        }
-
-        /* DNA */
-        .dna {
-            width: clamp(200px, 20vw, 260px);
-            height: clamp(800px, 100vh, 1500px);
-            perspective: 1000px;
-            position: relative;
-            opacity: 0.9;
-            transform: rotate(40deg);
-
-        }
-
-        .base {
-            position: absolute;
-            width: 100%;
-            height: 20px;
-            transform-style: preserve-3d;
-            animation: spin 10s linear infinite;
-            margin-bottom: 0px;
-        }
-
-        .dot {
-            position: absolute;
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            top: 0;
-            background: var(--accent);
-        }
-
-        .left {
-            left: 20%;
-        }
-
-        .right {
-            right: 20%;
-        }
-
-        .connector {
-            position: absolute;
-            top: 3px;
-            left: 25%;
-            width: 50%;
-            height: 2px;
-            background: var(--accent);
-            opacity: .3;
-        }
-
-        @keyframes spin {
-            to {
-                transform: rotateY(360deg);
-            }
-        }
-
-        /* Hide DNA on small screens */
-        @media (max-width:768px) {
-            .dna {
-                display: none;
-            }
-        }
-
-        /* Popup */
-        #popupOverlay {
-            position: fixed;
-            inset: 0;
-            background: rgba(0, 0, 0, .85);
-            backdrop-filter: blur(4px);
-            display: none;
             justify-content: center;
             align-items: center;
             padding: 20px;
+            z-index: 5;
+        }
+
+        #cred {
+            width: 100%;
+            max-width: 420px;
+            background: rgba(10, 13, 18, 0.85);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--tactical-border);
+            padding: 40px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8);
+            position: relative;
+        }
+
+        #cred::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 2px;
+            background: var(--tactical-accent);
+            box-shadow: 0 0 10px var(--tactical-accent);
+        }
+
+        #branding {
+            text-align: center;
+            color: var(--tactical-text-bright);
+            font-weight: bold;
+            letter-spacing: 4px;
+            margin-bottom: 10px;
+        }
+
+        input {
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid var(--tactical-border);
+            padding: 12px;
+            color: var(--tactical-text-bright);
+            font-family: inherit;
+            font-size: 14px;
+            width: 100%;
+            transition: all 0.3s ease;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: var(--tactical-accent);
+            box-shadow: 0 0 8px var(--tactical-accent-dim);
+        }
+
+        button {
+            padding: 12px;
+            background: transparent;
+            border: 1px solid var(--tactical-accent);
+            color: var(--tactical-accent);
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 14px;
+            letter-spacing: 2px;
+            transition: all 0.3s ease;
+            font-weight: bold;
+            width: 100%;
+        }
+
+        button:hover {
+            background: var(--tactical-accent);
+            color: var(--tactical-bg);
+            box-shadow: 0 0 15px var(--tactical-accent-dim);
+        }
+
+        .register-link {
+            text-align: center;
+            color: var(--tactical-text);
+            font-size: 12px;
+            text-decoration: none;
+            margin-top: 10px;
+            display: block;
+            letter-spacing: 1px;
+            transition: 0.3s;
+        }
+
+        .register-link:hover {
+            color: var(--tactical-accent);
+        }
+
+        .error {
+            color: var(--tactical-danger);
+            border: 1px solid var(--tactical-danger);
+            padding: 10px;
+            font-size: 12px;
+            text-align: center;
+            background: rgba(255, 51, 51, 0.1);
+        }
+
+        #popupOverlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.9);
+            display: none;
+            justify-content: center;
+            align-items: center;
             z-index: 100;
+            backdrop-filter: blur(5px);
         }
 
         #popupOverlay.active {
@@ -189,69 +170,68 @@
         }
 
         #popupBox {
-            width: clamp(300px, 40vw, 500px);
-            background: var(--panel);
-            border: 1px solid var(--border);
-            padding: clamp(20px, 3vw, 40px);
-            box-shadow: 0 0 30px rgba(0, 255, 157, .1);
+            width: 100%;
+            max-width: 450px;
+            background: var(--tactical-panel);
+            border: 1px solid var(--tactical-accent);
+            padding: 30px;
+            text-align: center;
+            box-shadow: 0 0 20px var(--tactical-accent-dim);
         }
 
         #popupBox h2 {
-            margin: 0 0 15px;
-            font-size: clamp(14px, 1.2vw, 18px);
+            color: var(--tactical-text-bright);
+            font-size: 16px;
             letter-spacing: 2px;
+            margin: 0 0 15px 0;
         }
 
         #status {
-            font-size: clamp(12px, 1vw, 14px);
-            opacity: .7;
+            font-size: 13px;
+            color: var(--tactical-accent);
             margin-bottom: 20px;
+            font-weight: bold;
         }
 
-        /* Hardware */
         .hardware {
             display: flex;
-            flex-wrap: wrap;
-            gap: 20px;
+            gap: 15px;
             justify-content: center;
         }
 
         .device {
-            flex: 1 1 150px;
-            border: 1px solid var(--border);
+            border: 1px solid var(--tactical-border);
             padding: 20px;
-            text-align: center;
+            width: 140px;
             cursor: pointer;
-            transition: .3s;
+            transition: all 0.3s ease;
+            background: rgba(0, 0, 0, 0.3);
         }
 
-        .device:hover {
-            border: 1px solid var(--accent);
-        }
-
+        .device:hover,
         .device.active {
-            border: 1px solid var(--accent);
-            box-shadow: 0 0 15px rgba(0, 255, 157, .3);
+            border-color: var(--tactical-accent);
+            background: var(--tactical-accent-dim);
         }
 
         .device-title {
-            font-size: clamp(10px, 1vw, 13px);
+            font-size: 11px;
             margin-bottom: 10px;
-            letter-spacing: 1px;
+            color: var(--tactical-text-bright);
         }
 
         .usb-slot {
-            width: 50px;
-            height: 20px;
+            width: 40px;
+            height: 15px;
+            border: 1px solid var(--tactical-accent);
             margin: 0 auto;
-            border: 2px solid var(--accent);
         }
 
         .scanner {
-            width: 50px;
-            height: 50px;
+            width: 40px;
+            height: 40px;
+            border: 1px solid var(--tactical-accent);
             margin: 0 auto;
-            border: 2px solid var(--accent);
             position: relative;
             overflow: hidden;
         }
@@ -259,9 +239,9 @@
         .scan-line {
             position: absolute;
             width: 100%;
-            height: 3px;
-            background: var(--accent);
-            top: -10px;
+            height: 2px;
+            background: var(--tactical-accent);
+            top: 0;
             animation: scan 2s linear infinite;
         }
 
@@ -272,22 +252,24 @@
         }
 
         .loader {
-            margin-top: 20px;
             height: 2px;
-            background: var(--accent);
+            background: var(--tactical-accent);
             width: 0%;
-            transition: width 2s linear;
+            transition: width 0.3s;
+            margin-top: 20px;
+            box-shadow: 0 0 10px var(--tactical-accent);
         }
 
         #cancelBtn {
-            margin-top: 25px;
-            padding: 10px;
-            background: transparent;
-            border: 1px solid var(--danger);
-            color: var(--danger);
-            cursor: pointer;
-            width: 100%;
-            font-family: Consolas, monospace;
+            margin-top: 20px;
+            border-color: var(--tactical-danger);
+            color: var(--tactical-danger);
+        }
+
+        #cancelBtn:hover {
+            background: var(--tactical-danger);
+            color: #fff;
+            box-shadow: 0 0 15px rgba(255, 51, 51, 0.3);
         }
     </style>
 </head>
@@ -295,7 +277,7 @@
 <body>
 
     <div id="nav">
-        <i class="fas fa-shield-alt" style="font-size: 40px; color: var(--accent); margin-bottom: 10px;"></i>
+        <i class="fas fa-shield-alt" style="font-size: 30px; color: var(--tactical-accent); margin-right: 15px;"></i>
         ZERO VAULT
     </div>
 
@@ -313,9 +295,21 @@
 
                     <form action="/register" method="POST" id="registerForm">
                         <div style="display:flex; flex-direction:column; gap: 15px;">
-                            <input type="email" name="email" placeholder="IDENTITY ID" required>
-                            <input type="password" name="password" placeholder="ACCESS CODE" required>
-                            <button type="submit" id="startBtn">INITIATE REGISTRATION</button>
+                            <button type="button" id="googleAuthBtn"
+                                style="background: #fff; border-color: #fff; color: #000; font-weight: bold; display: flex; align-items: center; justify-content: center; gap: 10px;">
+                                <img src="https://upload.wikimedia.org/wikipedia/commons/5/53/Google_%22G%22_Logo.svg"
+                                    alt="Google" style="width: 16px;">
+                                CONTINUE WITH GOOGLE
+                            </button>
+                            <input type="email" name="email" placeholder="Click CONTINUE WITH GOOGLE to fill this"
+                                required autocomplete="username" pattern=".*@gmail\.com$"
+                                title="Only @gmail.com addresses are allowed." readonly style="display: none;">
+                            <input type="password" name="password" placeholder="ACCESS CODE" required
+                                autocomplete="new-password" style="display: none;">
+                            <input type="password" name="confirmPassword" placeholder="CONFIRM ACCESS CODE" required
+                                autocomplete="new-password" style="display: none;">
+                            <button type="submit" id="startBtn" style="display: none;">INITIATE REGISTRATION</button>
+
                         </div>
                     </form>
 
@@ -323,13 +317,14 @@
                         ESTABLISHED
                     </div>
                     <div style="text-align: center; margin-top: 10px;">
-                        <a href="/login" style="color: var(--accent); text-decoration: none; font-size: 12px;">ALREADY
+                        <a href="/login"
+                            style="color: var(--tactical-accent); text-decoration: none; font-size: 12px;">ALREADY
                             HAVE AN ACCOUNT? LOGIN</a>
                     </div>
 
 
         </div>
-        <div class="dna" id="dna"></div>
+
     </div>
 
     <div id="popupOverlay">
@@ -358,19 +353,7 @@
 
     <script src="https://unpkg.com/@simplewebauthn/browser/dist/bundle/index.umd.min.js"></script>
     <script>
-        const dnaContainer = document.getElementById("dna");
-        for (let i = 0; i < 18; i++) {
-            const base = document.createElement("div");
-            base.className = "base";
-            base.style.top = `${i * 5}%`;
-            base.style.animationDelay = `${i * .3}s`;
-            base.innerHTML = `
-    <div class="dot left"></div>
-    <div class="connector"></div>
-    <div class="dot right"></div>
-  `;
-            dnaContainer.appendChild(base);
-        }
+
 
         const { startRegistration } = SimpleWebAuthnBrowser;
         const overlay = document.getElementById("popupOverlay");
@@ -484,6 +467,125 @@
 
     </script>
 
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+        import { getAuth, signInWithPopup, GoogleAuthProvider, getIdToken, updatePassword } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+
+        const firebaseConfig = {
+            apiKey: "<%= firebaseConfig.apiKey %>",
+            authDomain: "<%= firebaseConfig.authDomain %>"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const provider = new GoogleAuthProvider();
+
+        document.getElementById('googleAuthBtn').addEventListener('click', async () => {
+            try {
+                const result = await signInWithPopup(auth, provider);
+
+                if (!result.user.email.toLowerCase().endsWith("@gmail.com")) {
+                    alert("Only @gmail.com addresses are allowed.");
+                    auth.signOut();
+                    return;
+                }
+
+                // Google Verified. Now prompt for password.
+                const emailInput = document.querySelector('input[name="email"]');
+                const pwdInput = document.querySelector('input[name="password"]');
+                const confirmPwdInput = document.querySelector('input[name="confirmPassword"]');
+
+                emailInput.value = result.user.email;
+                emailInput.readOnly = true;
+                emailInput.style.opacity = '0.7';
+
+                document.getElementById('googleAuthBtn').style.display = 'none';
+                const startBtn = document.getElementById('startBtn');
+                startBtn.textContent = 'FINISH GOOGLE REGISTRATION';
+                startBtn.style.display = 'block';
+                pwdInput.style.display = 'block';
+                confirmPwdInput.style.display = 'block';
+
+                pwdInput.focus();
+
+                startBtn.onclick = async (e) => {
+                    e.preventDefault();
+                    if (!pwdInput.value) {
+                        alert("Please enter a new ACCESS CODE (Password) to secure your account.");
+                        return;
+                    }
+                    if (pwdInput.value !== confirmPwdInput.value) {
+                        alert("Access codes do not match. Please try again.");
+                        return;
+                    }
+
+                    try {
+                        showPopup();
+                        statusText.textContent = "Setting Access Code...";
+                        loaderBar.style.width = "30%";
+
+                        // Set the password in Firebase Auth so they can email/pass login later
+                        await updatePassword(result.user, pwdInput.value);
+
+                        const idToken = await getIdToken(result.user);
+
+                        statusText.textContent = "Linking with Zero Vault...";
+                        loaderBar.style.width = "45%";
+
+                        const resp = await fetch('/auth/google', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ idToken, isRegister: true })
+                        });
+
+                        const serverResult = await resp.json();
+
+                        if (serverResult.newRegistration) {
+                            statusText.textContent = "Access Code Set. Registering Passkey...";
+                            loaderBar.style.width = "60%";
+
+                            const optsResp = await fetch('/api/webauthn/register-options');
+                            const opts = await optsResp.json();
+                            if (opts.error) throw new Error(opts.error);
+
+                            const attResp = await startRegistration({ optionsJSON: opts });
+
+                            const verifyResp = await fetch('/api/webauthn/register-verify', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify(attResp),
+                            });
+
+                            const verifyResult = await verifyResp.json();
+
+                            if (verifyResult.verified) {
+                                statusText.textContent = "Security Token Linked. Accessing...";
+                                loaderBar.style.width = "100%";
+                                setTimeout(() => window.location.href = '/', 1000);
+                            } else {
+                                throw new Error(verifyResult.error || "Passkey registration failed");
+                            }
+                        } else if (serverResult.success || serverResult.mfaRequired) {
+                            window.location.href = '/';
+                        } else {
+                            throw new Error(serverResult.error || "Google authentication failed");
+                        }
+                    } catch (err) {
+                        console.error(err);
+                        if (err.name !== 'AbortError') {
+                            alert("Error: " + err.message);
+                        }
+                        closePopup();
+                    }
+                };
+            } catch (err) {
+                console.error(err);
+                if (err.code !== 'auth/popup-closed-by-user') {
+                    alert("Error: " + err.message);
+                }
+            }
+        });
+    </script>
 </body>
 
 </html>

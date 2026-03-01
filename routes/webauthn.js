@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const { ref, get, push, update } = require("firebase/database");
+const { ref, get, push, update, increment } = require("firebase/database");
 const { db } = require("../config/firebase");
 const { generateRegistrationOptions, verifyRegistrationResponse, generateAuthenticationOptions, verifyAuthenticationResponse } = require("@simplewebauthn/server");
 const base64url = require("base64url");
@@ -28,8 +28,9 @@ router.get("/register-options", requireLogin, async (req, res) => {
                 transports: auth.transports,
             })),
             authenticatorSelection: {
-                residentKey: "preferred",
-                userVerification: "preferred",
+                residentKey: "required",
+                userVerification: "required",
+                authenticatorAttachment: "platform",
             },
         };
 
@@ -198,9 +199,20 @@ router.post("/login-verify", async (req, res) => {
                 await update(ref(db, `users/${foundUid}/authenticators/${foundAuthKey}`), { counter: newCounter });
             }
 
-            req.session.user = { uid: foundUid, email: userEmail };
+            req.session.user = {
+                uid: foundUid,
+                email: userEmail,
+                lat: req.session.partialLogin?.lat,
+                lng: req.session.partialLogin?.lng
+            };
             req.session.currentChallenge = undefined;
             req.session.partialLogin = undefined;
+
+            await update(ref(db, `users/${foundUid}`), {
+                lastLoginLocation: { lat: req.session.user.lat || null, lng: req.session.user.lng || null },
+                loginCount: increment(1),
+                lastLoginAt: Math.floor(Date.now() / 1000)
+            });
 
             req.session.save((err) => {
                 if (err) return res.status(500).json({ error: "Failed to save session" });

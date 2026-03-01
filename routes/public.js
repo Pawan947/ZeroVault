@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const { ref, get, update } = require("firebase/database");
+const { ref, get, update, set } = require("firebase/database");
 const { db } = require("../config/firebase");
 const { s3, BUCKET } = require("../config/aws");
 const { haversineDistance } = require("../utils/geo");
@@ -18,7 +18,11 @@ router.get("/share/:linkId", async (req, res) => {
 
         const linkData = snap.val();
         const now = Math.floor(Date.now() / 1000);
-        if (now > linkData.expiryTime) return res.status(410).send("Link expired");
+        if (now > linkData.expiryTime || linkData.downloadsUsed >= linkData.maxDownloads) {
+            // lazy cleanup
+            set(ref(db, `links/${linkId}`), null).catch(console.error);
+            return res.status(410).send("Link expired");
+        }
 
         const { lat: currLat, lng: currLng } = req.query;
         if (linkData.geofence) {
@@ -46,11 +50,12 @@ router.get("/share/:linkId", async (req, res) => {
             const total = head.ContentLength;
             const range = req.headers.range;
             const isEncrypted = head.Metadata && head.Metadata.encrypted === "true";
+            const version = head.Metadata && head.Metadata.version ? head.Metadata.version : "1";
 
             if (!range) {
                 res.writeHead(200, { "Content-Length": total, "Content-Type": "video/" + extension });
                 const s3Stream = s3.getObject({ Bucket: BUCKET, Key: linkData.filePath }).createReadStream();
-                if (isEncrypted) s3Stream.pipe(getCryptoStream(linkData.filePath, 0)).pipe(res);
+                if (isEncrypted) s3Stream.pipe(getCryptoStream(linkData.filePath, 0, version)).pipe(res);
                 else s3Stream.pipe(res);
             } else {
                 const parts = range.replace(/bytes=/, "").split("-");
@@ -63,16 +68,17 @@ router.get("/share/:linkId", async (req, res) => {
                     "Content-Type": "video/" + extension,
                 });
                 const s3Stream = s3.getObject({ Bucket: BUCKET, Key: linkData.filePath, Range: `bytes=${start}-${end}` }).createReadStream();
-                if (isEncrypted) s3Stream.pipe(getCryptoStream(linkData.filePath, start)).pipe(res);
+                if (isEncrypted) s3Stream.pipe(getCryptoStream(linkData.filePath, start, version)).pipe(res);
                 else s3Stream.pipe(res);
             }
         } else {
             const head = await s3.headObject({ Bucket: BUCKET, Key: linkData.filePath }).promise();
             const isEncrypted = head.Metadata && head.Metadata.encrypted === "true";
+            const version = head.Metadata && head.Metadata.version ? head.Metadata.version : "1";
 
             res.attachment(filename);
             const s3Stream = s3.getObject({ Bucket: BUCKET, Key: linkData.filePath }).createReadStream();
-            if (isEncrypted) s3Stream.pipe(getCryptoStream(linkData.filePath, 0)).pipe(res);
+            if (isEncrypted) s3Stream.pipe(getCryptoStream(linkData.filePath, 0, version)).pipe(res);
             else s3Stream.pipe(res);
         }
 

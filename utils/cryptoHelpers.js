@@ -1,8 +1,13 @@
 const crypto = require("crypto");
 
-const MASTER_KEY = crypto.scryptSync(process.env.SESSION_SECRET || "default_secret_key_123456", "salt", 32);
+const STORAGE_SECRET = process.env.STORAGE_MASTER_KEY || process.env.SESSION_SECRET || "default_secret_key_123456";
+const MASTER_KEY = crypto.scryptSync(STORAGE_SECRET, "salt", 32);
 
-function getCryptoStream(filePath, rangeStart = 0) {
+function getFileKey(filePath) {
+    return crypto.createHmac("sha256", MASTER_KEY).update(filePath).digest();
+}
+
+function getCryptoStream(filePath, rangeStart = 0, version = "1") {
     const iv = crypto.createHash("md5").update(filePath + (process.env.SESSION_SECRET || "default")).digest();
 
     const blockIndex = BigInt(Math.floor(rangeStart / 16));
@@ -19,7 +24,9 @@ function getCryptoStream(filePath, rangeStart = 0) {
 
     const counterBuffer = Buffer.from(newIvHex, 'hex');
 
-    const cipher = crypto.createDecipheriv("aes-256-ctr", MASTER_KEY, counterBuffer);
+    const keyToUse = version === "2" ? getFileKey(filePath) : MASTER_KEY;
+
+    const cipher = crypto.createDecipheriv("aes-256-ctr", keyToUse, counterBuffer);
 
     const offsetInBlock = rangeStart % 16;
     if (offsetInBlock > 0) {
@@ -29,4 +36,4 @@ function getCryptoStream(filePath, rangeStart = 0) {
     return cipher;
 }
 
-module.exports = { getCryptoStream };
+module.exports = { getCryptoStream, getFileKey };

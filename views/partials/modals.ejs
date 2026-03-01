@@ -1,0 +1,128 @@
+<button id="createFolderBtn">+ Folder</button>
+
+<div id="shareModal">
+    <div class="modal-content">
+        <h3>Share</h3>
+        <p id="modalFilename"></p>
+        <label>Expiry Value:</label><input type="number" id="expiryValueInput" min="1" value="5"><br>
+        <label>Unit:</label>
+        <select id="expiryUnitSelect">
+            <option value="m">Minutes</option>
+            <option value="h">Hours</option>
+            <option value="d">Days</option>
+        </select><br>
+
+        <div id="fileShareOptions">
+            <label>Max Downloads:</label>
+            <input type="number" id="maxDownloadsInput" min="1" value="3"><br>
+            <label>IP Limit:</label>
+            <input type="number" id="perIpLimitInput" min="1" value="2"><br>
+        </div>
+
+        <label>Geofence:</label>
+        <input type="checkbox" id="geofenceCheckbox"><br>
+        <div id="geofenceOptions" style="display:none; text-align: left; padding-left: 10%;">
+            <label>Radius (km):</label>
+            <input type="number" id="radiusInput" min="1" value="5"><br>
+        </div>
+
+        <div id="folderPermissions">
+            <h4>Folder Permissions:</h4>
+            <label><input type="checkbox" id="permDownload" checked> Download files</label><br>
+            <label><input type="checkbox" id="permUpload" checked> Upload files</label><br>
+            <label><input type="checkbox" id="permDelete" checked> Delete files</label><br>
+            <label>Recipient Email:</label>
+            <input type="email" id="recipientEmailInput" placeholder="user@example.com" required><br>
+        </div>
+
+        <button id="confirmShareBtn" class="btn">Share</button>
+        <button id="closeShareBtn" class="btn" style="background:#555;">Cancel</button>
+    </div>
+</div>
+
+<div id="manageSharesModal"
+    style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:3000; overflow-y:auto; padding: 40px 0;">
+    <div class="modal-content"
+        style="background:var(--modal-bg); padding:20px; border-radius:10px; width:90%; max-width:800px; margin: auto;">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+            <h3>Manage Shares</h3>
+            <button id="closeManageSharesBtn" class="btn" style="background:#555;">Close</button>
+        </div>
+        <h4>Shared Folders</h4>
+        <div id="sharedFoldersContainer" style="margin-bottom:20px; max-height: 250px; overflow-y:auto;">Loading...
+        </div>
+        <h4>Shared Links (Files)</h4>
+        <div id="sharedLinksContainer" style="max-height: 250px; overflow-y:auto;">Loading...</div>
+    </div>
+</div>
+
+<div id="heatmapModal"
+    style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:4000; justify-content:center; align-items:center;">
+    <div class="modal-content"
+        style="background:var(--modal-bg); padding:20px; border-radius:10px; width:90%; max-width:600px; text-align:center;">
+        <h3>Download Heatmap</h3>
+        <div id="map" style="height: 400px; width: 100%; margin-bottom: 15px; background: #eee;"></div>
+        <button id="closeHeatmapBtn" class="btn" style="background:#555;">Close</button>
+    </div>
+</div>
+
+<div id="webrtcShareModal"
+    style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:4000; justify-content:center; align-items:center;">
+    <div class="modal-content"
+        style="background:var(--modal-bg); padding:20px; border-radius:10px; width:90%; max-width:450px; text-align:center;">
+        <h3>Direct File Share</h3>
+        <p style="font-size: 13px; color: #aaa; margin-bottom: 20px;">Share files directly P2P with another user.
+        </p>
+
+        <div id="webrtcStateInitial">
+            <button id="btnCreateShareRoom" class="step-back-btn" style="text-align:center;">Create Share
+                Room</button>
+            <div style="margin: 15px 0; border-top: 1px solid #444;"></div>
+            <p style="font-size:12px; margin: 10px 0;">OR JOIN ROOM</p>
+            <input type="text" id="webrtcRoomInput" placeholder="Enter 6-char Room Code" maxlength="6"
+                style="width: 100%; box-sizing: border-box; padding: 10px; margin-bottom: 10px; background: #333; color: white; border: 1px solid #555; text-align: center; text-transform: uppercase;">
+            <button id="btnJoinShareRoom" class="step-back-btn"
+                style="background: #28a745; text-align:center;">Join</button>
+        </div>
+
+        <div id="webrtcStateSender" style="display:none;">
+            <p style="font-size: 14px;">Share this Room ID:</p>
+            <h2 id="webrtcDisplayRoomId"
+                style="color: #0f0; letter-spacing: 3px; font-family: monospace; font-size: 32px; background: #111; padding: 10px; border-radius: 5px;">
+                LOAD</h2>
+            <p style="font-size: 12px; color: #aaa;">Waiting for peer to connect...</p>
+        </div>
+
+        <div id="webrtcStateConnected" style="display:none;">
+            <p style="color: #0f0; margin-bottom: 15px;">Connected! Secure channel established.</p>
+            <input type="file" id="webrtcFileInput" style="display:none;">
+            <button id="btnSelectWebRTCFile" class="step-back-btn" style="text-align:center; background:#555;">Select
+                File</button>
+            <p id="webrtcSelectedFileName" style="font-size:12px; margin-top: 5px;"></p>
+            <button id="btnSendWebRTCFile" class="step-back-btn"
+                style="text-align:center; background:#28a745; display:none;">Send P2P File</button>
+
+            <div id="webrtcProgressContainer" style="display:none; margin-top: 15px;">
+                <p id="webrtcSpeedDisplay" style="font-size: 12px; text-align:right;">0 Mbps</p>
+                <div style="width: 100%; background: #333; height: 10px; border-radius: 5px; overflow: hidden;">
+                    <div id="webrtcProgressBar"
+                        style="width: 0%; background: #0f0; height: 100%; transition: width 0.1s;"></div>
+                </div>
+                <p id="webrtcProgressText" style="font-size:12px; margin-top:5px; text-align:center;">0%</p>
+            </div>
+
+            <div id="webrtcReceiveContainer"
+                style="display:none; margin-top: 15px; border-top: 1px solid #444; padding-top: 10px;">
+                <p style="font-size: 14px; font-weight: bold; color: #ffcc00;">Received File:</p>
+                <a id="webrtcDownloadLink" download href="#"
+                    style="color:#00aaff; word-break: break-all; display: inline-block; background: #222; padding: 10px; border-radius: 5px; margin-top: 5px;">Download
+                    File</a>
+            </div>
+        </div>
+
+        <button id="closeWebRTCShareBtn" class="btn" style="background:#555; width:100%; margin-top:20px;">Close
+            Window</button>
+    </div>
+</div>
+
+<div id="debugConsole"></div>

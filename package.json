@@ -10,10 +10,12 @@
   "dependencies": {
     "@simplewebauthn/browser": "^13.2.2",
     "@simplewebauthn/server": "^13.2.2",
-    "aws-sdk": "^2.1692.0",
+    "aws-sdk": "^2.1693.0",
     "base64url": "^3.0.1",
     "body-parser": "^1.20.2",
     "cookie-parser": "^1.4.6",
+    "crypto-js": "^4.2.0",
+    "deep-email-validator": "^0.1.21",
     "dotenv": "^17.3.1",
     "ejs": "^3.1.10",
     "express": "^4.19.2",

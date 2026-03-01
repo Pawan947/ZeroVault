@@ -26,7 +26,12 @@ router.get("/", requireLogin, checkSharedAccess, async (req, res) => {
             if (sharedSnapshot.exists()) {
                 const now = Math.floor(Date.now() / 1000);
                 for (const [key, entry] of Object.entries(sharedSnapshot.val())) {
-                    if (entry.accessTo === req.session.user.email && entry.expiryTime > now) {
+                    if (entry.expiryTime <= now) {
+                        // Lazy cleanup
+                        set(ref(db, `Access/${key}`), null).catch(console.error);
+                        continue;
+                    }
+                    if (entry.accessTo === req.session.user.email) {
                         combinedFolders.push({
                             shareId: key,
                             folderPath: entry.folderPath,
@@ -45,7 +50,13 @@ router.get("/", requireLogin, checkSharedAccess, async (req, res) => {
             folders: combinedFolders,
             currentPath: req.query.path || "",
             userEmail: req.session.user.email,
-            sharedId: req.query.sharedId || ""
+            sharedId: req.query.sharedId || "",
+            firebaseConfig: {
+                apiKey: process.env.FIREBASE_API_KEY,
+                authDomain: process.env.FIREBASE_AUTH_DOMAIN,
+                databaseURL: process.env.FIREBASE_DATABASE_URL,
+                projectId: process.env.FIREBASE_PROJECT_ID
+            }
         });
     } catch (err) {
         console.error("List Files Error:", err);
@@ -53,12 +64,11 @@ router.get("/", requireLogin, checkSharedAccess, async (req, res) => {
     }
 });
 
-// ---------------- Upload ----------------
-router.post("/upload", requireLogin, checkSharedAccess, async (req, res) => {
+router.post("/upload/multipart/create", requireLogin, checkSharedAccess, async (req, res) => {
     try {
-        const { fileName, contentType } = req.body;
-        console.log(`[Upload] Request for: ${fileName}, Path: ${req.query.path}, SharedId: ${req.query.sharedId}`);
-        if (!fileName) return res.status(400).json({ error: "File name missing" });
+        const { fileName, contentType, fileSize } = req.body;
+        if (!fileName || !fileSize) return res.status(400).json({ error: "Missing parameters" });
+        if (fileSize > 50 * 1024 * 1024 * 1024) return res.status(400).json({ error: "File too large (Max 50GB)" });
 
         const folderPath = req.sharedEntry ? req.sharedEntry.folderPath + (req.query.path || "") : getCurrentPath(req);
         if (req.sharedEntry && !req.sharedEntry.permissions.upload) return res.status(403).send("No upload permission");
@@ -66,33 +76,61 @@ router.post("/upload", requireLogin, checkSharedAccess, async (req, res) => {
         const sanitizedName = fileName.replace(/\.{2}/g, "");
         const key = folderPath + sanitizedName;
 
-        const uploadUrl = `/api/proxy-upload?key=${encodeURIComponent(key)}`;
-        res.json({ uploadUrl, key });
+        const multipartUpload = await s3.createMultipartUpload({
+            Bucket: BUCKET,
+            Key: key,
+            ContentType: contentType || "application/octet-stream",
+            Metadata: { encrypted: "true", mode: "AES-256-CTR", version: "2" }
+        }).promise();
+
+        const CHUNK_SIZE = 5 * 1024 * 1024;
+        const parts = Math.ceil(fileSize / CHUNK_SIZE);
+        if (parts > 10000) return res.status(400).json({ error: "Too many parts required." });
+
+        const preSignedUrls = [];
+        for (let i = 1; i <= parts; i++) {
+            const url = s3.getSignedUrl('uploadPart', {
+                Bucket: BUCKET,
+                Key: key,
+                PartNumber: i,
+                UploadId: multipartUpload.UploadId,
+                Expires: 3600 // 1 hour per part
+            });
+            preSignedUrls.push(url);
+        }
+
+        const { getFileKey } = require("../utils/cryptoHelpers");
+        const fileKeyHex = getFileKey(key).toString('hex');
+
+        res.json({ uploadId: multipartUpload.UploadId, key, preSignedUrls, fileKeyHex });
     } catch (err) {
-        console.error("Upload Error:", err);
+        console.error("Create Multipart Error:", err);
         res.status(500).json({ error: err.message });
     }
 });
 
-router.put("/api/proxy-upload", requireLogin, checkSharedAccess, async (req, res) => {
+router.post("/upload/multipart/complete", requireLogin, async (req, res) => {
     try {
-        const key = req.query.key;
-        if (!key) return res.status(400).json({ error: "Key missing" });
+        const { key, uploadId, parts, hmac } = req.body;
+        if (!key || !uploadId || !parts) return res.status(400).json({ error: "Missing parameters" });
 
-        // Since frontend already validates paths before hitting this, we just proxy stream directly.
-        const cipher = getCryptoStream(key, 0);
-
-        await s3.upload({
+        await s3.completeMultipartUpload({
             Bucket: BUCKET,
             Key: key,
-            Body: req.pipe(cipher),
-            ContentType: "application/octet-stream",
-            Metadata: { encrypted: "true" }
+            UploadId: uploadId,
+            MultipartUpload: { Parts: parts } // Array of {ETag, PartNumber}
         }).promise();
+
+        // Save HMAC array signature for streaming validation later
+        const filename = key.split("/").pop();
+        await set(ref(db, "signatures/" + Buffer.from(key).toString('base64')), {
+            hmacSha256: hmac,
+            createdAt: Math.floor(Date.now() / 1000)
+        });
 
         res.json({ success: true });
     } catch (err) {
-        console.error("Proxy Upload Error:", err);
+        console.error("Complete Multipart Error:", err);
         res.status(500).json({ error: err.message });
     }
 });
@@ -165,12 +203,13 @@ router.get("/download/:filename", requireLogin, checkSharedAccess, async (req, r
 
         const head = await s3.headObject({ Bucket: BUCKET, Key: key }).promise();
         const isEncrypted = head.Metadata && head.Metadata.encrypted === "true";
+        const version = head.Metadata && head.Metadata.version ? head.Metadata.version : "1";
 
         res.attachment(filename);
         const s3Stream = s3.getObject({ Bucket: BUCKET, Key: key }).createReadStream();
 
         if (isEncrypted) {
-            s3Stream.pipe(getCryptoStream(key, 0)).pipe(res);
+            s3Stream.pipe(getCryptoStream(key, 0, version)).pipe(res);
         } else {
             s3Stream.pipe(res);
         }
@@ -298,11 +337,12 @@ router.get("/video/:filename", requireLogin, checkSharedAccess, async (req, res)
         const total = head.ContentLength;
         const range = req.headers.range;
         const isEncrypted = head.Metadata && head.Metadata.encrypted === "true";
+        const version = head.Metadata && head.Metadata.version ? head.Metadata.version : "1";
 
         if (!range) {
             res.writeHead(200, { "Content-Length": total, "Content-Type": "video/mp4" });
             const s3Stream = s3.getObject({ Bucket: BUCKET, Key: key }).createReadStream();
-            if (isEncrypted) s3Stream.pipe(getCryptoStream(key, 0)).pipe(res);
+            if (isEncrypted) s3Stream.pipe(getCryptoStream(key, 0, version)).pipe(res);
             else s3Stream.pipe(res);
         } else {
             const parts = range.replace(/bytes=/, "").split("-");
@@ -315,7 +355,7 @@ router.get("/video/:filename", requireLogin, checkSharedAccess, async (req, res)
                 "Content-Type": "video/mp4",
             });
             const s3Stream = s3.getObject({ Bucket: BUCKET, Key: key, Range: `bytes=${start}-${end}` }).createReadStream();
-            if (isEncrypted) s3Stream.pipe(getCryptoStream(key, start)).pipe(res);
+            if (isEncrypted) s3Stream.pipe(getCryptoStream(key, start, version)).pipe(res);
             else s3Stream.pipe(res);
         }
     } catch (err) {
@@ -343,7 +383,12 @@ router.get("/api/my-shares", requireLogin, async (req, res) => {
         // Fetch shared folders
         const accessSnap = await get(ref(db, "Access"));
         if (accessSnap.exists()) {
+            const now = Math.floor(Date.now() / 1000);
             for (const [key, entry] of Object.entries(accessSnap.val())) {
+                if (entry.expiryTime && entry.expiryTime <= now) {
+                    set(ref(db, `Access/${key}`), null).catch(console.error);
+                    continue;
+                }
                 if (entry.owner === userEmail) {
                     folders.push({ id: key, ...entry });
                 }
@@ -353,7 +398,12 @@ router.get("/api/my-shares", requireLogin, async (req, res) => {
         // Fetch shared links
         const linksSnap = await get(ref(db, "links"));
         if (linksSnap.exists()) {
+            const now = Math.floor(Date.now() / 1000);
             for (const [key, entry] of Object.entries(linksSnap.val())) {
+                if ((entry.expiryTime && entry.expiryTime <= now) || (entry.maxDownloads && entry.downloadsUsed >= entry.maxDownloads)) {
+                    set(ref(db, `links/${key}`), null).catch(console.error);
+                    continue;
+                }
                 if (entry.owner === userEmail) {
                     links.push({ id: key, ...entry });
                 }
