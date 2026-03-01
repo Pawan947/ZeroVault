@@ -55,6 +55,10 @@ app.use((err, req, res, next) => {
     res.status(500).send("Something went wrong!");
 });
 
-app.listen(PORT, () => {
-    console.log(`Server running at http://localhost:${PORT}`);
-});
+if (process.env.NODE_ENV !== "production" || process.env.VERCEL !== "1") {
+    app.listen(PORT, () => {
+        console.log(`Server running at http://localhost:${PORT}`);
+    });
+}
+
+module.exports = app;
