@@ -12,6 +12,7 @@ const PORT = process.env.PORT || 3000;
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.json());
 app.use(cookieParser());
+app.set("trust proxy", 1);
 app.use(session({
     name: 'session',
     keys: [process.env.SESSION_SECRET || "supersecret"],

@@ -3,7 +3,12 @@ const { db } = require("../config/firebase");
 const { haversineDistance } = require("../utils/geo");
 
 function requireLogin(req, res, next) {
-    if (!req.session.user) return res.redirect("/login");
+    if (!req.session.user) {
+        if (req.headers.accept && req.headers.accept.includes("application/json")) {
+            return res.status(401).json({ error: "Unauthorized access: Session expired or invalid." });
+        }
+        return res.redirect("/login");
+    }
     next();
 }
 
