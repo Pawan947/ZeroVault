@@ -417,7 +417,9 @@
                     loaderBar.style.width = "60%";
 
                     // Step 2: WebAuthn Registration
-                    const optsResp = await fetch('/api/webauthn/register-options');
+                    const optsResp = await fetch('/api/webauthn/register-options', {
+                        headers: { 'Accept': 'application/json' }
+                    });
                     const opts = await optsResp.json();
                     if (opts.error) throw new Error(opts.error);
 
@@ -425,7 +427,10 @@
 
                     const verifyResp = await fetch('/api/webauthn/register-verify', {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json'
+                        },
                         body: JSON.stringify(attResp),
                     });
 
@@ -534,7 +539,10 @@
 
                         const resp = await fetch('/auth/google', {
                             method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Accept': 'application/json'
+                            },
                             body: JSON.stringify({ idToken, isRegister: true })
                         });
 
@@ -544,7 +552,9 @@
                             statusText.textContent = "Access Code Set. Registering Passkey...";
                             loaderBar.style.width = "60%";
 
-                            const optsResp = await fetch('/api/webauthn/register-options');
+                            const optsResp = await fetch('/api/webauthn/register-options', {
+                                headers: { 'Accept': 'application/json' }
+                            });
                             const opts = await optsResp.json();
                             if (opts.error) throw new Error(opts.error);
 
@@ -552,7 +562,10 @@
 
                             const verifyResp = await fetch('/api/webauthn/register-verify', {
                                 method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'Accept': 'application/json'
+                                },
                                 body: JSON.stringify(attResp),
                             });
 

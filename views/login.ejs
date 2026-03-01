@@ -454,7 +454,9 @@
           statusText.textContent = "Identity verified. Awaiting Passkey...";
           loaderBar.style.width = "75%";
 
-          const optsResp = await fetch('/api/webauthn/login-options');
+          const optsResp = await fetch('/api/webauthn/login-options', {
+            headers: { 'Accept': 'application/json' }
+          });
           const opts = await optsResp.json();
           if (opts.error) throw new Error(opts.error);
 
@@ -462,7 +464,10 @@
 
           const verifyResp = await fetch('/api/webauthn/login-verify', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json'
+            },
             body: JSON.stringify(asseResp),
           });
 
