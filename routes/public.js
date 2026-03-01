@@ -36,8 +36,9 @@ router.get("/share/:linkId", async (req, res) => {
         }
 
         const clientIp = req.headers["x-forwarded-for"]?.split(",")[0] || req.socket.remoteAddress || "unknown";
+        const sanitizedIp = clientIp.replace(/[\.\#\$\[\]]/g, "_");
         const ipDownloads = linkData.ipDownloads || {};
-        const currentIpCount = ipDownloads[clientIp] || 0;
+        const currentIpCount = ipDownloads[sanitizedIp] || 0;
 
         if (currentIpCount >= linkData.perIpLimit) return res.status(403).send(`IP download limit reached`);
         if (linkData.downloadsUsed >= linkData.maxDownloads) return res.status(403).send("Total download limit reached");
@@ -94,13 +95,8 @@ router.get("/share/:linkId", async (req, res) => {
 
         await update(ref(db, "links/" + linkId), {
             downloadsUsed: (linkData.downloadsUsed || 0) + 1,
-            ipDownloads: { ...ipDownloads, [clientIp]: currentIpCount + 1 },
+            ipDownloads: { ...ipDownloads, [sanitizedIp]: currentIpCount + 1 },
             downloadLocations: currentLocations
-        });
-
-        await new Promise((resolve, reject) => {
-            res.on("finish", resolve);
-            res.on("error", reject);
         });
     } catch (err) {
         console.error("Shared Link Access Error:", err);

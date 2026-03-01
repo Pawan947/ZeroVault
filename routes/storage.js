@@ -213,11 +213,6 @@ router.get("/download/:filename", requireLogin, checkSharedAccess, async (req, r
         } else {
             s3Stream.pipe(res);
         }
-
-        await new Promise((resolve, reject) => {
-            res.on("finish", resolve);
-            res.on("error", reject);
-        });
     } catch (err) {
         console.error("Download Error:", err);
         res.status(500).send("Download failed");
@@ -363,11 +358,6 @@ router.get("/video/:filename", requireLogin, checkSharedAccess, async (req, res)
             if (isEncrypted) s3Stream.pipe(getCryptoStream(key, start, version)).pipe(res);
             else s3Stream.pipe(res);
         }
-
-        await new Promise((resolve, reject) => {
-            res.on("finish", resolve);
-            res.on("error", reject);
-        });
     } catch (err) {
         console.error("Stream Video Error:", err);
         res.status(500).send("Failed to stream video");
