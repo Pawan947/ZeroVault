@@ -20,7 +20,7 @@
     "crypto-js": "^4.2.0",
     "deep-email-validator": "^0.1.21",
     "dotenv": "^17.3.1",
-    "ejs": "^3.1.10",
+    "ejs": "^4.0.1",
     "express": "^4.19.2",
     "express-session": "^1.18.0",
     "firebase": "^10.12.2",
