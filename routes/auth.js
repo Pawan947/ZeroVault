@@ -110,8 +110,38 @@ router.post("/register", async (req, res) => {
     } catch (err) {
         console.error("Registration Error:", err);
         let errorMessage = "Registration failed";
-        if (err.code === 'auth/email-already-in-use') errorMessage = "Email already in use";
-        if (err.code === 'auth/weak-password') errorMessage = "Password is too weak";
+
+        if (err.code === 'auth/email-already-in-use') {
+            try {
+                // If email exists, check if they failed to complete passkey registration previously
+                const userCredential = await signInWithEmailAndPassword(auth, email, password);
+                const user = userCredential.user;
+
+                const userAuthenticatorsRef = ref(db, `users/${user.uid}/authenticators`);
+                const snapshot = await get(userAuthenticatorsRef);
+                const hasAuthenticators = snapshot.exists() && snapshot.size > 0;
+
+                if (!hasAuthenticators) {
+                    // They don't have a passkey. Resume registration session.
+                    req.session.user = { uid: user.uid, email: user.email };
+                    return req.session.save(() => {
+                        if (req.headers.accept && req.headers.accept.includes("application/json")) {
+                            return res.json({ success: true, resumed: true });
+                        }
+                        res.redirect("/");
+                    });
+                } else {
+                    errorMessage = "Email already registered with a passkey. Please login instead.";
+                }
+            } catch (signInErr) {
+                console.error("Resume Registration Sign-In Error:", signInErr);
+                errorMessage = "Email already in use. If this is you, use the correct password to continue or go to login.";
+            }
+        } else if (err.code === 'auth/weak-password') {
+            errorMessage = "Password is too weak";
+        } else {
+            errorMessage = err.message || "Registration failed";
+        }
 
         if (req.headers.accept && req.headers.accept.includes("application/json")) {
             return res.status(400).json({ error: errorMessage });

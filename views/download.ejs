@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -51,8 +52,13 @@
         }
 
         @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
         }
 
         #message {
@@ -61,6 +67,7 @@
         }
     </style>
 </head>
+
 <body>
     <div class="container">
         <h1>Accessing Secured File</h1>
@@ -80,10 +87,10 @@
             console.error(msg);
             document.getElementById('loader').style.display = 'none';
             document.getElementById('message').innerHTML = '⚠️ Geolocation failed or was denied: ' + msg + '<br>Attempting download without location (may fail if geofence is active)...';
-            // Wait briefly then redirect without location params
+            // Wait briefly then redirect with skip flag
             setTimeout(() => {
-                window.location.href = '/share/' + linkId;
-            }, 3000); 
+                window.location.href = '/share/' + linkId + '?skipGeofence=true';
+            }, 3000);
         }
 
         /**
@@ -94,7 +101,7 @@
             const lat = pos.coords.latitude;
             const lng = pos.coords.longitude;
             document.getElementById('message').textContent = 'Location secured. Verifying access...';
-            
+
             // Redirect with location query parameters
             const redirectUrl = `/share/${linkId}?lat=${lat}&lng=${lng}`;
             window.location.replace(redirectUrl);
@@ -107,7 +114,7 @@
                 locationSuccess,
                 (error) => {
                     let errorMessage = "Unknown error.";
-                    switch(error.code) {
+                    switch (error.code) {
                         case error.PERMISSION_DENIED:
                             errorMessage = "Permission denied by user.";
                             break;
@@ -127,4 +134,5 @@
         }
     </script>
 </body>
+
 </html>

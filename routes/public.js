@@ -9,9 +9,6 @@ const { getCryptoStream } = require("../utils/cryptoHelpers");
 router.get("/share/:linkId", async (req, res) => {
     try {
         const linkId = req.params.linkId;
-        if (!req.query.lat || !req.query.lng) {
-            return res.render("download", { linkId });
-        }
 
         const snap = await get(ref(db, "links/" + linkId));
         if (!snap.exists()) return res.status(404).send("Invalid link");
@@ -24,8 +21,15 @@ router.get("/share/:linkId", async (req, res) => {
             return res.status(410).send("Link expired");
         }
 
-        const { lat: currLat, lng: currLng } = req.query;
         if (linkData.geofence) {
+            if (!req.query.lat || !req.query.lng) {
+                if (req.query.skipGeofence === 'true') {
+                    return res.status(403).send("Geofence is enabled. Location access is required to download this file.");
+                }
+                return res.render("download", { linkId });
+            }
+
+            const { lat: currLat, lng: currLng } = req.query;
             const distance = haversineDistance(
                 { lat: parseFloat(currLat), lng: parseFloat(currLng) },
                 { lat: linkData.geofence.latitude, lng: linkData.geofence.longitude }
