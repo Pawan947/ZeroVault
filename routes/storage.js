@@ -83,7 +83,7 @@ router.post("/upload/multipart/create", requireLogin, checkSharedAccess, async (
             Metadata: { encrypted: "true", mode: "AES-256-CTR", version: "2" }
         }).promise();
 
-        const CHUNK_SIZE = 5 * 1024 * 1024;
+        const CHUNK_SIZE = 10 * 1024 * 1024;
         const parts = Math.ceil(fileSize / CHUNK_SIZE);
         if (parts > 10000) return res.status(400).json({ error: "Too many parts required." });
 

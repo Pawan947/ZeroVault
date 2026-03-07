@@ -1,6 +1,6 @@
 importScripts('https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js');
 
-const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB
+const CHUNK_SIZE = 10 * 1024 * 1024; // 10MB
 
 self.onmessage = async function (e) {
     const { file, uploadId, key, preSignedUrls, fileKeyHex } = e.data;
@@ -12,8 +12,15 @@ self.onmessage = async function (e) {
     try {
         const etags = [];
         let hmacContext = CryptoJS.algo.HMAC.create(CryptoJS.algo.SHA256, aesKey);
+        const activeUploads = new Set();
+        const MAX_CONCURRENT_UPLOADS = 10;
+        let chunksCompleted = 0;
 
         for (let i = 0; i < totalChunks; i++) {
+            while (activeUploads.size >= MAX_CONCURRENT_UPLOADS) {
+                await Promise.race(activeUploads);
+            }
+
             const start = i * CHUNK_SIZE;
             const end = Math.min(start + CHUNK_SIZE, file.size);
             const chunkBlob = file.slice(start, end);
@@ -54,16 +61,25 @@ self.onmessage = async function (e) {
                 encryptedBytes[j] = (encryptedWordArr.words[j >>> 2] >>> (24 - (j % 4) * 8)) & 0xff;
             }
 
-            // Upload to S3 directly via Presigned URL
-            self.postMessage({ type: 'progress', chunk: i + 1, total: totalChunks, status: 'uploading' });
-
             const presignedUrl = preSignedUrls[i];
 
-            const etag = await uploadChunkToS3(presignedUrl, encryptedBytes);
-            etags.push({ PartNumber: i + 1, ETag: etag });
+            const p = uploadChunkToS3(presignedUrl, encryptedBytes).then(etag => {
+                etags.push({ PartNumber: i + 1, ETag: etag });
+                chunksCompleted++;
+                self.postMessage({ type: 'progress', chunk: chunksCompleted, total: totalChunks, status: 'done' });
+            }).catch(err => {
+                throw err; // Re-throw to be caught by the outer catch
+            }).finally(() => {
+                activeUploads.delete(p);
+            });
 
-            self.postMessage({ type: 'progress', chunk: i + 1, total: totalChunks, status: 'done' });
+            activeUploads.add(p);
         }
+
+        await Promise.all(activeUploads);
+
+        // Sort etags because they probably completed out of order
+        etags.sort((a, b) => a.PartNumber - b.PartNumber);
 
         const finalHmac = hmacContext.finalize().toString();
 
