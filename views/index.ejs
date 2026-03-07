@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+
+<%- include('partials/head') %>
+
+<body>
+    <%- include('partials/header') %>
+
+    <div class="container">
+        <%- include('partials/sidebar') %>
+
+        <div class="main">
+            <div class="breadcrumb">
+                <a href="<%= (sharedId && sharedId !== 'undefined') ? '/?sharedId='+sharedId : '/' %>">Home</a>
+                <% const parts=(currentPath || "" ).split("/").filter(Boolean); %>
+                    <% let accumulated="" ; %>
+                        <% parts.forEach((p,i)=>{ accumulated+=p+"/" ; %>
+                            / <a
+                                href="<%= (sharedId && sharedId !== 'undefined') ? '/?sharedId='+sharedId+'&path='+encodeURIComponent(accumulated) : '/?path='+encodeURIComponent(accumulated) %>">
+                                <%= p %>
+                            </a>
+                            <% }) %>
+            </div>
+
+            <div class="upload" id="uploadSection">
+                <h3>Upload New File(s)</h3>
+                <input type="file" id="fileInput" multiple required>
+                <button id="uploadBtn">Upload</button>
+                <div id="progressContainer">
+                    <div id="progressBar"></div>
+                </div>
+            </div>
+
+            <h2>Files</h2>
+            <table>
+                <tr>
+                    <th>Filename</th>
+                    <th>Size</th>
+                    <th>Last Modified</th>
+                    <th>Actions</th>
+                </tr>
+                <% if(files.length===0){ %>
+                    <tr>
+                        <td colspan="4" style="text-align:center;">No files uploaded yet.</td>
+                    </tr>
+                    <% } else { %>
+                        <% files.forEach(f=> { %>
+                            <tr>
+                                <td>
+                                    <%= f.name %>
+                                </td>
+                                <td>
+                                    <%= f.size %>
+                                </td>
+                                <td>
+                                    <%= f.lastModified %>
+                                </td>
+                                <td>
+                                    <a class="btn download-file" data-name="<%= f.name %>">Download</a>
+                                    <a class="btn delete-file" data-name="<%= f.name %>">Delete</a>
+                                    <% if (!sharedId) { %>
+                                        <button class="btn share-file" data-name="<%= f.name %>">Share</button>
+                                        <% } %>
+                                </td>
+                            </tr>
+                            <% }) %>
+                                <% } %>
+            </table>
+        </div>
+    </div>
+
+    <%- include('partials/modals') %>
+    <%- include('partials/scripts') %>
+</body>
+
+</html>

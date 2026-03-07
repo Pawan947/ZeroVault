@@ -1,0 +1,36 @@
+<div class="sidebar">
+            <h2>Folders</h2>
+            <% if(currentPath) { %>
+                <button class="step-back-btn">← Step Back</button>
+                <% } %>
+                    <% if(folders.length===0) { %>
+                        <p>No folders</p>
+                        <% } else { %>
+                            <% folders.forEach(f=> { %>
+                                <div class="folder-item" data-folder="<%= f.name %>">
+                                    <span class="folder-name">
+                                        <%= f.name %>
+                                            <%= f.isShared ? "(Shared)" : "" %>
+                                                <% if(f.isShared) { %>
+                                                    <span class="shared-by" data-share-id="<%= f.shareId %>">
+                                                        Shared by
+                                                        <%= f.owner %>
+                                                    </span>
+                                                    <% } %>
+                                    </span>
+                                    <div class="folder-actions">
+                                        <% if(!f.isShared) { %>
+                                            <a class="btn delete-folder" data-name="<%= f.name %>">Delete</a>
+                                            <% if (!sharedId) { %>
+                                                <button class="btn share-folder"
+                                                    data-name="<%= f.name %>">Share</button>
+                                                <% } %>
+                                                    <% } else { %>
+                                                        <a class="btn delete-folder"
+                                                            data-name="<%= f.name %>">Delete</a>
+                                                        <% } %>
+                                    </div>
+                                </div>
+                                <% }) %>
+                                    <% } %>
+        </div>

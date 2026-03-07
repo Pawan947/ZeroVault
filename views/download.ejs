@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Secured Download Access</title>
+    <style>
+        :root {
+            --primary-bg: #474545;
+            --main-bg: #2a2a2a;
+            --text-color: #eee;
+            --accent-color: #ffcc00;
+            --shadow-color: rgba(255, 0, 0, 0.5);
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background: var(--primary-bg);
+            color: var(--text-color);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            flex-direction: column;
+            text-align: center;
+        }
+
+        .container {
+            background: var(--main-bg);
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+            max-width: 400px;
+            width: 90%;
+        }
+
+        h1 {
+            color: var(--accent-color);
+            margin-bottom: 20px;
+        }
+
+        .loader {
+            border: 4px solid var(--text-color);
+            border-top: 4px solid var(--accent-color);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        #message {
+            margin-top: 15px;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Accessing Secured File</h1>
+        <div class="loader" id="loader"></div>
+        <p id="message">Requesting browser location for security verification...</p>
+    </div>
+
+    <script>
+        // Get the linkId from the URL path (e.g., /share/LINK_ID)
+        const linkId = window.location.pathname.split('/').pop();
+
+        /**
+         * Fallback mechanism to inform the user about the issue and redirect.
+         * @param {string} msg 
+         */
+        function handleLocationError(msg) {
+            console.error(msg);
+            document.getElementById('loader').style.display = 'none';
+            document.getElementById('message').innerHTML = '⚠️ Geolocation failed or was denied: ' + msg + '<br>Attempting download without location (may fail if geofence is active)...';
+            // Wait briefly then redirect without location params
+            setTimeout(() => {
+                window.location.href = '/share/' + linkId;
+            }, 3000); 
+        }
+
+        /**
+         * Successful geolocation: append coords and redirect.
+         * @param {GeolocationPosition} pos 
+         */
+        function locationSuccess(pos) {
+            const lat = pos.coords.latitude;
+            const lng = pos.coords.longitude;
+            document.getElementById('message').textContent = 'Location secured. Verifying access...';
+            
+            // Redirect with location query parameters
+            const redirectUrl = `/share/${linkId}?lat=${lat}&lng=${lng}`;
+            window.location.replace(redirectUrl);
+        }
+
+        // --- Main execution ---
+        if (navigator.geolocation) {
+            // Set a timeout of 10 seconds to avoid indefinite waiting
+            navigator.geolocation.getCurrentPosition(
+                locationSuccess,
+                (error) => {
+                    let errorMessage = "Unknown error.";
+                    switch(error.code) {
+                        case error.PERMISSION_DENIED:
+                            errorMessage = "Permission denied by user.";
+                            break;
+                        case error.POSITION_UNAVAILABLE:
+                            errorMessage = "Position unavailable.";
+                            break;
+                        case error.TIMEOUT:
+                            errorMessage = "Request timed out.";
+                            break;
+                    }
+                    handleLocationError(errorMessage);
+                },
+                { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+            );
+        } else {
+            handleLocationError("Browser does not support Geolocation.");
+        }
+    </script>
+</body>
+</html>

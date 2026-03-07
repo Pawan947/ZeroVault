@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Secure Access Terminal</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600&display=swap"
+    rel="stylesheet">
+  <style>
+    :root {
+      --tactical-bg: #050709;
+      --tactical-panel: #0a0d12;
+      --tactical-border: #1a222c;
+      --tactical-accent: #fb3f00;
+      --tactical-accent-dim: rgba(0, 255, 102, 0.15);
+      --tactical-text: #8b9eb3;
+      --tactical-text-bright: #e2e8f0;
+      --tactical-danger: #ff3333;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--tactical-bg);
+      color: var(--tactical-text);
+      font-family: 'Courier New', Courier, monospace;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      background-image: linear-gradient(rgba(0, 255, 102, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0, 255, 102, 0.03) 1px, transparent 1px);
+      background-size: 40px 40px;
+    }
+
+    #nav {
+      height: 60px;
+      background: var(--tactical-panel);
+      border-bottom: 1px solid var(--tactical-border);
+      display: flex;
+      align-items: center;
+      padding: 0 2vw;
+      font-size: 14px;
+      letter-spacing: 3px;
+      color: var(--tactical-accent);
+      text-transform: uppercase;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+      z-index: 10;
+    }
+
+    #main {
+      flex: 1;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+      z-index: 5;
+    }
+
+    #cred {
+      width: 100%;
+      max-width: 420px;
+      background: rgba(10, 13, 18, 0.85);
+      backdrop-filter: blur(10px);
+      border: 1px solid var(--tactical-border);
+      padding: 40px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8);
+      position: relative;
+    }
+
+    #cred::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 2px;
+      background: var(--tactical-accent);
+      box-shadow: 0 0 10px var(--tactical-accent);
+    }
+
+    #branding {
+      text-align: center;
+      color: var(--tactical-text-bright);
+      font-weight: bold;
+      letter-spacing: 4px;
+      margin-bottom: 10px;
+    }
+
+    input {
+      background: rgba(0, 0, 0, 0.5);
+      border: 1px solid var(--tactical-border);
+      padding: 12px;
+      color: var(--tactical-text-bright);
+      font-family: inherit;
+      font-size: 14px;
+      width: 100%;
+      transition: all 0.3s ease;
+    }
+
+    input:focus {
+      outline: none;
+      border-color: var(--tactical-accent);
+      box-shadow: 0 0 8px var(--tactical-accent-dim);
+    }
+
+    button {
+      padding: 12px;
+      background: transparent;
+      border: 1px solid var(--tactical-accent);
+      color: var(--tactical-accent);
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 14px;
+      letter-spacing: 2px;
+      transition: all 0.3s ease;
+      font-weight: bold;
+      width: 100%;
+    }
+
+    button:hover {
+      background: var(--tactical-accent);
+      color: var(--tactical-bg);
+      box-shadow: 0 0 15px var(--tactical-accent-dim);
+    }
+
+    .register-link {
+      text-align: center;
+      color: var(--tactical-text);
+      font-size: 12px;
+      text-decoration: none;
+      margin-top: 10px;
+      display: block;
+      letter-spacing: 1px;
+      transition: 0.3s;
+    }
+
+    .register-link:hover {
+      color: var(--tactical-accent);
+    }
+
+    .error {
+      color: var(--tactical-danger);
+      border: 1px solid var(--tactical-danger);
+      padding: 10px;
+      font-size: 12px;
+      text-align: center;
+      background: rgba(255, 51, 51, 0.1);
+    }
+
+    #popupOverlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.9);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 100;
+      backdrop-filter: blur(5px);
+    }
+
+    #popupOverlay.active {
+      display: flex;
+    }
+
+    #popupBox {
+      width: 100%;
+      max-width: 450px;
+      background: var(--tactical-panel);
+      border: 1px solid var(--tactical-accent);
+      padding: 30px;
+      text-align: center;
+      box-shadow: 0 0 20px var(--tactical-accent-dim);
+    }
+
+    #popupBox h2 {
+      color: var(--tactical-text-bright);
+      font-size: 16px;
+      letter-spacing: 2px;
+      margin: 0 0 15px 0;
+    }
+
+    #status {
+      font-size: 13px;
+      color: var(--tactical-accent);
+      margin-bottom: 20px;
+      font-weight: bold;
+    }
+
+    .hardware {
+      display: flex;
+      gap: 15px;
+      justify-content: center;
+    }
+
+    .device {
+      border: 1px solid var(--tactical-border);
+      padding: 20px;
+      width: 140px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      background: rgba(0, 0, 0, 0.3);
+    }
+
+    .device:hover,
+    .device.active {
+      border-color: var(--tactical-accent);
+      background: var(--tactical-accent-dim);
+    }
+
+    .device-title {
+      font-size: 11px;
+      margin-bottom: 10px;
+      color: var(--tactical-text-bright);
+    }
+
+    .usb-slot {
+      width: 40px;
+      height: 15px;
+      border: 1px solid var(--tactical-accent);
+      margin: 0 auto;
+    }
+
+    .scanner {
+      width: 40px;
+      height: 40px;
+      border: 1px solid var(--tactical-accent);
+      margin: 0 auto;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .scan-line {
+      position: absolute;
+      width: 100%;
+      height: 2px;
+      background: var(--tactical-accent);
+      top: 0;
+      animation: scan 2s linear infinite;
+    }
+
+    @keyframes scan {
+      to {
+        top: 100%;
+      }
+    }
+
+    .loader {
+      height: 2px;
+      background: var(--tactical-accent);
+      width: 0%;
+      transition: width 0.3s;
+      margin-top: 20px;
+      box-shadow: 0 0 10px var(--tactical-accent);
+    }
+
+    #cancelBtn {
+      margin-top: 20px;
+      border-color: var(--tactical-danger);
+      color: var(--tactical-danger);
+    }
+
+    #cancelBtn:hover {
+      background: var(--tactical-danger);
+      color: #fff;
+      box-shadow: 0 0 15px rgba(255, 51, 51, 0.3);
+    }
+  </style>
+</head>
+
+<body>
+
+  <div id="nav">
+    <i class="fas fa-shield-alt" style="font-size: 30px; color: var(--tactical-accent); margin-right: 15px;"></i>
+    WorkZen
+  </div>
+
+  <div id="main">
+
+
+
+
+
+
+
+
+
+
+
+
+
+    <div id="cred">
+      <div id="branding" style="text-align:center; margin-bottom: 15px;">
+
+        <div style="font-size: 18px; letter-spacing: 2px;">AUTHENTICATION</div>
+      </div>
+
+      <% if (error) { %>
+        <div class="error">
+          <%= error %>
+        </div>
+        <% } %>
+
+          <form action="/login" method="POST" id="loginForm">
+            <div style="display:flex; flex-direction:column; gap: 15px;">
+              <input type="email" name="email" placeholder="IDENTITY ID" required autocomplete="username">
+              <input type="password" name="password" placeholder="ACCESS CODE" required autocomplete="current-password">
+              <button type="submit" id="startBtn">INITIATE AUTH</button>
+              <a href="/register" class="register-link">REQUEST ACCESS (REGISTER)</a>
+            </div>
+          </form>
+
+          <div style="margin: 5px 0; text-align: center; font-size: 10px; opacity: 0.5;">SECURE CONNECTION
+            ESTABLISHED
+          </div>
+
+
+    </div>
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+  <div id="popupOverlay">
+    <div id="popupBox">
+      <h2>PASSKEY AUTHENTICATION</h2>
+      <div id="status">Awaiting hardware interaction...</div>
+
+      <div class="hardware">
+        <div class="device" id="usbDevice">
+          <div class="device-title">USB SECURITY TOKEN</div>
+          <div class="usb-slot"></div>
+        </div>
+
+        <div class="device" id="bioDevice">
+          <div class="device-title">BIOMETRIC SCANNER</div>
+          <div class="scanner">
+            <div class="scan-line"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="loader" id="loaderBar"></div>
+      <button id="cancelBtn">ABORT</button>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/@simplewebauthn/browser/dist/bundle/index.umd.min.js"></script>
+  <script>
+
+
+    const { startAuthentication } = SimpleWebAuthnBrowser;
+    const overlay = document.getElementById("popupOverlay");
+    const usbDevice = document.getElementById("usbDevice");
+    const bioDevice = document.getElementById("bioDevice");
+    const loaderBar = document.getElementById("loaderBar");
+    const statusText = document.getElementById("status");
+    const loginForm = document.getElementById('loginForm');
+    const startBtn = document.getElementById('startBtn');
+
+    // Show the popup overlay
+    function showPopup() {
+      overlay.classList.add("active");
+      statusText.textContent = "Awaiting hardware interaction...";
+      loaderBar.style.width = "0%";
+      usbDevice.classList.remove("active");
+      bioDevice.classList.remove("active");
+    }
+
+    // Close the popup overlay
+    function closePopup() {
+      overlay.classList.remove("active");
+      loaderBar.style.width = "0%";
+    }
+
+    // This handles the actual authentication logic
+    async function performAuthentication(device) {
+      if (!loginForm.checkValidity()) {
+        loginForm.reportValidity();
+        closePopup();
+        return;
+      }
+
+      try {
+        // Visual feedback
+        usbDevice.classList.remove("active");
+        bioDevice.classList.remove("active");
+        if (device) device.classList.add("active");
+
+        statusText.textContent = "Handshaking with Work Zen...";
+        loaderBar.style.transition = "width 2s linear";
+        loaderBar.style.width = "50%"; // Mid-point for first factor
+
+        // Ask for location purely for contextual logging or geofence features
+        try {
+          const pos = await new Promise((resolve, reject) => {
+            navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 3000 });
+          });
+
+          // Generate a hidden input or append to form data
+          const latInput = document.createElement("input");
+          latInput.type = "hidden";
+          latInput.name = "lat";
+          latInput.value = pos.coords.latitude;
+          loginForm.appendChild(latInput);
+
+          const lngInput = document.createElement("input");
+          lngInput.type = "hidden";
+          lngInput.name = "lng";
+          lngInput.value = pos.coords.longitude;
+          loginForm.appendChild(lngInput);
+        } catch (e) {
+          console.log("Geolocation skipped or denied:", e.message);
+        }
+
+        const formData = new FormData(loginForm);
+        const data = Object.fromEntries(formData.entries());
+
+        // Step 1: Standard Login check
+        const resp = await fetch('/login', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Accept': 'application/json'
+          },
+          body: new URLSearchParams(data)
+        });
+
+        const result = await resp.json();
+
+        if (result.success) {
+          statusText.textContent = "Identity verified. Accessing...";
+          loaderBar.style.width = "100%";
+          setTimeout(() => window.location.href = '/', 1000);
+        } else if (result.mfaRequired) {
+          // Step 2: WebAuthn MFA if required
+          statusText.textContent = "Identity verified. Awaiting Passkey...";
+          loaderBar.style.width = "75%";
+
+          const optsResp = await fetch('/api/webauthn/login-options', {
+            headers: { 'Accept': 'application/json' }
+          });
+          const opts = await optsResp.json();
+          if (opts.error) throw new Error(opts.error);
+
+          const asseResp = await startAuthentication({ optionsJSON: opts });
+
+          const verifyResp = await fetch('/api/webauthn/login-verify', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json'
+            },
+            body: JSON.stringify(asseResp),
+          });
+
+          const verifyResult = await verifyResp.json();
+
+          if (verifyResult.verified) {
+            statusText.textContent = "Multi-factor authentication complete.";
+            loaderBar.style.width = "100%";
+            setTimeout(() => window.location.href = '/', 1000);
+          } else {
+            throw new Error(verifyResult.error || "Passkey verification failed");
+          }
+        } else {
+          throw new Error(result.error || "Invalid credentials");
+        }
+      } catch (err) {
+        console.error(err);
+        statusText.textContent = "ERROR: " + err.message;
+        loaderBar.style.width = "0%";
+        if (err.name !== 'AbortError') {
+          setTimeout(() => alert("Access Denied: " + err.message), 500);
+        }
+      }
+    }
+
+    // Wire up events
+    startBtn.onclick = (e) => {
+      e.preventDefault();
+      if (loginForm.checkValidity()) {
+        showPopup();
+      } else {
+        loginForm.reportValidity();
+      }
+    };
+
+    usbDevice.onclick = () => performAuthentication(usbDevice);
+    bioDevice.onclick = () => performAuthentication(bioDevice);
+    document.getElementById("cancelBtn").onclick = closePopup;
+
+
+
+  </script>
+
+</body>
+
+</html>
