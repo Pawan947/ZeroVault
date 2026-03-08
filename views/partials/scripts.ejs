@@ -144,7 +144,8 @@
 
     // Share modal logic
     let currentFileToShare = null,
-        currentFolderToShare = null;
+        currentFolderToShare = null,
+        moveFilename = null;
 
     function openShareModal(name, isFolder = false) {
         document.getElementById('modalFilename').textContent = name;
@@ -268,17 +269,171 @@
         }).catch(err => alert('Error: ' + err.message));
     });
 
-    // Event delegation for folder/file actions
-    document.addEventListener('click', e => {
+    // Build hierarchical folder menu
+    function buildFolderMenu(parentElement, folders, currentPathPrefix, parentPath = '') {
+        const currentLevelFolders = folders.filter(f => {
+            if (!f.startsWith(parentPath)) return false;
+            const remaining = f.substring(parentPath.length);
+            return remaining.length > 0 && remaining.indexOf('/') === remaining.length - 1;
+        });
+
+        if (currentLevelFolders.length === 0) return;
+
+        const ul = document.createElement('ul');
+        ul.className = 'submenu';
+
+        currentLevelFolders.forEach(folderPath => {
+            const folderName = folderPath.substring(parentPath.length).replace('/', '');
+            const li = document.createElement('li');
+            li.textContent = folderName;
+
+            // Recurse for subfolders
+            const hasChildren = folders.some(f => f.startsWith(folderPath) && f !== folderPath);
+            if (hasChildren) {
+                li.classList.add('has-submenu');
+                buildFolderMenu(li, folders, currentPathPrefix, folderPath);
+            }
+
+            li.addEventListener('click', (e) => {
+                e.stopPropagation();
+                document.getElementById('customContextMenu')?.remove();
+                if (!moveFilename) return;
+
+                // Destination path is just the folderPath, but let's make sure format is correct based on original logic
+                const dest = folderPath;
+
+                const url = '/api/move' + (currentPathPrefix ? '?' + currentPathPrefix : '');
+
+                fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ filename: moveFilename, destinationPath: dest })
+                })
+                    .then(res => res.json().then(data => ({ status: res.status, ok: res.ok, data })))
+                    .then(({ status, ok, data }) => {
+                        if (ok) {
+                            location.reload();
+                        } else {
+                            alert('Error moving file: ' + data.error);
+                        }
+                    })
+                    .catch(err => alert('Error: ' + err.message));
+            });
+
+            ul.appendChild(li);
+        });
+
+        parentElement.appendChild(ul);
+    }
+
+    // Context Menu Logic
+    document.addEventListener('contextmenu', async (e) => {
+        const fileRow = e.target.closest('.file-row');
+        if (!fileRow) return;
+
+        e.preventDefault();
+
+        // Remove existing menu if any
+        document.getElementById('customContextMenu')?.remove();
+
+        moveFilename = fileRow.dataset.name;
+
+        // Fetch folders
+        try {
+            const res = await fetch('/api/all-folders' + (sharedId && sharedId !== "undefined" ? '?sharedId=' + encodeURIComponent(sharedId) : ''));
+            const data = await res.json();
+
+            if (data.folders) {
+                const menu = document.createElement('div');
+                menu.id = 'customContextMenu';
+                menu.className = 'context-menu';
+
+                const ul = document.createElement('ul');
+                const moveLi = document.createElement('li');
+                moveLi.textContent = 'Move';
+                moveLi.classList.add('has-submenu');
+
+                // Construct root for building menu
+                const rootUl = document.createElement('ul');
+                rootUl.className = 'submenu';
+
+                const homeLi = document.createElement('li');
+                homeLi.textContent = 'Home (/)';
+                homeLi.addEventListener('click', (ev) => {
+                    ev.stopPropagation();
+                    document.getElementById('customContextMenu')?.remove();
+                    if (!moveFilename) return;
+
+                    const params = new URLSearchParams();
+                    if (currentPath) params.append('path', currentPath);
+                    if (sharedId && sharedId !== 'undefined') params.append('sharedId', sharedId);
+                    const url = '/api/move' + (params.toString() ? '?' + params.toString() : '');
+
+                    fetch(url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ filename: moveFilename, destinationPath: "" })
+                    })
+                        .then(res => res.json().then(data => ({ ok: res.ok, data })))
+                        .then(({ ok, data }) => {
+                            if (ok) location.reload();
+                            else alert('Error moving file: ' + data.error);
+                        })
+                        .catch(err => alert('Error: ' + err.message));
+                });
+
+                // Build tree structure
+                const params = new URLSearchParams();
+                if (currentPath) params.append('path', currentPath);
+                if (sharedId && sharedId !== 'undefined') params.append('sharedId', sharedId);
+
+                buildFolderMenu(homeLi, data.folders, params.toString());
+
+                rootUl.appendChild(homeLi);
+                moveLi.appendChild(rootUl);
+                ul.appendChild(moveLi);
+                menu.appendChild(ul);
+
+                document.body.appendChild(menu);
+
+                menu.style.display = 'block';
+
+                // Adjust position to not go off screen
+                const rect = menu.getBoundingClientRect();
+                let top = e.pageY;
+                let left = e.pageX;
+
+                if (left + rect.width > window.innerWidth) left = window.innerWidth - rect.width;
+                if (top + rect.height > window.innerHeight) top = window.innerHeight - rect.height;
+
+                menu.style.top = top + 'px';
+                menu.style.left = left + 'px';
+            }
+        } catch (err) {
+            console.error('Error loading folders for context menu:', err);
+        }
+    });
+
+    document.addEventListener('click', (e) => {
+        // Hide context menu if clicked outside
+        if (!e.target.closest('.context-menu')) {
+            document.getElementById('customContextMenu')?.remove();
+        }
+
+        // Event delegation for folder/file actions
         // Handle step back button
-        if (e.target.classList.contains('step-back-btn')) {
-            const pathParts = currentPath.split('/').filter(Boolean);
-            pathParts.pop();
-            const parentPath = pathParts.join('/') + (pathParts.length ? '/' : '');
-            const url = sharedId && sharedId !== 'undefined' ?
-                `/?sharedId=${encodeURIComponent(sharedId)}&path=${encodeURIComponent(parentPath)}` :
-                `/?path=${encodeURIComponent(parentPath)}`;
-            window.location = url;
+        if (e.target.classList.contains('step-back-btn') && !e.target.id) {
+            if (currentPath) {
+                const pathParts = currentPath.split('/').filter(Boolean);
+                pathParts.pop();
+                const parentPath = pathParts.join('/') + (pathParts.length ? '/' : '');
+                const url = sharedId && sharedId !== 'undefined' ?
+                    `/?sharedId=${encodeURIComponent(sharedId)}&path=${encodeURIComponent(parentPath)}` :
+                    `/?path=${encodeURIComponent(parentPath)}`;
+                window.location = url;
+            } else if (sharedId && sharedId !== 'undefined') {
+                window.location = '/';
+            }
         }
         // Handle folder clicks in sidebar
         else if (e.target.closest('.folder-item') &&
@@ -287,7 +442,6 @@
             !e.target.classList.contains('shared-by')) {
             const folderItem = e.target.closest('.folder-item');
             const folder = folderItem.dataset.folder;
-
             if (sharedId && sharedId !== 'undefined') {
                 const url = `/?sharedId=${encodeURIComponent(sharedId)}&path=${encodeURIComponent(currentPath + folder + '/')}`;
                 window.location = url;
@@ -319,6 +473,62 @@
         } else if (e.target.classList.contains('download-file')) {
             const filename = e.target.dataset.name;
             window.location = `/download/${filename}?path=${currentPath}${sharedId ? '&sharedId=' + sharedId : ''}`;
+        } else if (e.target.classList.contains('move-file')) {
+            const filename = e.target.dataset.name;
+            moveFilename = filename;
+            document.getElementById('moveFilenameDisplay').textContent = filename;
+            fetch('/api/all-folders' + (sharedId && sharedId !== "undefined" ? '?sharedId=' + encodeURIComponent(sharedId) : ''))
+                .then(res => res.json())
+                .then(data => {
+                    const select = document.getElementById('moveDestinationSelect');
+                    select.innerHTML = '<option value="">/ (Root)</option>';
+                    if (data.folders) {
+                        data.folders.forEach(f => {
+                            if (f !== "") select.innerHTML += `<option value="${f}">${f}</option>`;
+                        });
+                    }
+                    document.getElementById('moveModal').style.display = 'flex';
+                })
+                .catch(err => alert('Error loading folders: ' + err.message));
+        }
+    });
+
+    document.getElementById('closeMoveBtn')?.addEventListener('click', () => {
+        document.getElementById('moveModal').style.display = 'none';
+        moveFilename = null;
+    });
+
+    document.getElementById('confirmMoveBtn')?.addEventListener('click', async () => {
+        if (!moveFilename) return;
+        const dest = document.getElementById('moveDestinationSelect').value;
+        const confirmBtn = document.getElementById('confirmMoveBtn');
+        confirmBtn.disabled = true;
+        confirmBtn.textContent = 'Moving...';
+
+        let url = '/api/move';
+        const params = new URLSearchParams();
+        if (currentPath) params.append('path', currentPath);
+        if (sharedId && sharedId !== 'undefined') params.append('sharedId', sharedId);
+        if (params.toString()) url += '?' + params.toString();
+
+        try {
+            const res = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ filename: moveFilename, destinationPath: dest })
+            });
+            const data = await res.json();
+            if (res.ok) {
+                location.reload();
+            } else {
+                alert('Error moving file: ' + data.error);
+                confirmBtn.disabled = false;
+                confirmBtn.textContent = 'Move';
+            }
+        } catch (err) {
+            alert('Error: ' + err.message);
+            confirmBtn.disabled = false;
+            confirmBtn.textContent = 'Move';
         }
     });
 

@@ -175,6 +175,68 @@ router.post("/folder/create", requireLogin, checkSharedAccess, async (req, res) 
     }
 });
 
+// ---------------- Move ----------------
+router.get("/api/all-folders", requireLogin, checkSharedAccess, async (req, res) => {
+    try {
+        const baseFolder = req.sharedEntry ? req.sharedEntry.folderPath : getUserBaseFolder(req);
+        const list = await s3.listObjectsV2({ Bucket: BUCKET, Prefix: baseFolder }).promise();
+        const folders = list.Contents.filter(o => o.Key.endsWith('/')).map(o => o.Key.replace(baseFolder, ""));
+        res.json({ folders: ["", ...folders.filter(f => f !== "")] });
+    } catch (err) {
+        console.error("List All Folders Error:", err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.post("/api/move", requireLogin, checkSharedAccess, async (req, res) => {
+    try {
+        const { filename, destinationPath } = req.body;
+        if (!filename) return res.status(400).json({ error: "Missing filename" });
+        if (destinationPath === undefined) return res.status(400).json({ error: "Missing destination folder" });
+
+        const folderPath = req.sharedEntry ? req.sharedEntry.folderPath + (req.query.path || "") : getCurrentPath(req);
+        if (req.sharedEntry && (!req.sharedEntry.permissions.delete || !req.sharedEntry.permissions.upload)) {
+            return res.status(403).json({ error: "No move permission" });
+        }
+
+        const sourceKey = folderPath + filename;
+        const ownerBase = getUserBaseFolder(req);
+
+        let targetPrefix = ownerBase + destinationPath;
+        if (req.sharedEntry) {
+            targetPrefix = req.sharedEntry.folderPath + destinationPath;
+        }
+
+        const destKey = targetPrefix + filename;
+        if (sourceKey === destKey) return res.status(400).json({ error: "Source and destination are the same" });
+
+        const head = await s3.headObject({ Bucket: BUCKET, Key: sourceKey }).promise();
+
+        if (head.ContentLength > 5 * 1024 * 1024 * 1024) {
+            return res.status(400).json({ error: "File too large to move (Max 5GB). Please download and re-upload." });
+        }
+
+        const originalKey = head.Metadata && head.Metadata.originalkey ? head.Metadata.originalkey : sourceKey;
+        const newMetadata = { ...head.Metadata, originalkey: originalKey };
+
+        await s3.copyObject({
+            Bucket: BUCKET,
+            CopySource: encodeURIComponent(BUCKET + '/' + sourceKey),
+            Key: destKey,
+            MetadataDirective: 'REPLACE',
+            ContentType: head.ContentType,
+            Metadata: newMetadata
+        }).promise();
+
+        await s3.deleteObject({ Bucket: BUCKET, Key: sourceKey }).promise();
+
+        res.json({ success: true });
+    } catch (err) {
+        console.error("Move Error:", err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // ---------------- Delete ----------------
 router.get("/delete/:name", requireLogin, checkSharedAccess, async (req, res) => {
     try {
@@ -204,12 +266,13 @@ router.get("/download/:filename", requireLogin, checkSharedAccess, async (req, r
         const head = await s3.headObject({ Bucket: BUCKET, Key: key }).promise();
         const isEncrypted = head.Metadata && head.Metadata.encrypted === "true";
         const version = head.Metadata && head.Metadata.version ? head.Metadata.version : "1";
+        const cryptoKey = head.Metadata && head.Metadata.originalkey ? head.Metadata.originalkey : key;
 
         res.attachment(filename);
         const s3Stream = s3.getObject({ Bucket: BUCKET, Key: key }).createReadStream();
 
         if (isEncrypted) {
-            s3Stream.pipe(getCryptoStream(key, 0, version)).pipe(res);
+            s3Stream.pipe(getCryptoStream(cryptoKey, 0, version)).pipe(res);
         } else {
             s3Stream.pipe(res);
         }
@@ -254,7 +317,7 @@ router.get("/api/access/:folderName", requireLogin, async (req, res) => {
         const ownerBase = getUserBaseFolder(req);
         const folderPath = ownerBase + (req.query.path || "") + folderName + "/";
 
-        const expirySeconds = parseExpiry(expiryValue, expiryUnit, 3600);
+        const expirySeconds = parseExpiry(expiryValue, expiryUnit, 60);
         const expiryTime = Math.floor(Date.now() / 1000) + expirySeconds;
 
         const accessData = {
@@ -338,11 +401,12 @@ router.get("/video/:filename", requireLogin, checkSharedAccess, async (req, res)
         const range = req.headers.range;
         const isEncrypted = head.Metadata && head.Metadata.encrypted === "true";
         const version = head.Metadata && head.Metadata.version ? head.Metadata.version : "1";
+        const cryptoKey = head.Metadata && head.Metadata.originalkey ? head.Metadata.originalkey : key;
 
         if (!range) {
             res.writeHead(200, { "Content-Length": total, "Content-Type": "video/mp4" });
             const s3Stream = s3.getObject({ Bucket: BUCKET, Key: key }).createReadStream();
-            if (isEncrypted) s3Stream.pipe(getCryptoStream(key, 0, version)).pipe(res);
+            if (isEncrypted) s3Stream.pipe(getCryptoStream(cryptoKey, 0, version)).pipe(res);
             else s3Stream.pipe(res);
         } else {
             const parts = range.replace(/bytes=/, "").split("-");
@@ -355,7 +419,7 @@ router.get("/video/:filename", requireLogin, checkSharedAccess, async (req, res)
                 "Content-Type": "video/mp4",
             });
             const s3Stream = s3.getObject({ Bucket: BUCKET, Key: key, Range: `bytes=${start}-${end}` }).createReadStream();
-            if (isEncrypted) s3Stream.pipe(getCryptoStream(key, start, version)).pipe(res);
+            if (isEncrypted) s3Stream.pipe(getCryptoStream(cryptoKey, start, version)).pipe(res);
             else s3Stream.pipe(res);
         }
     } catch (err) {
@@ -427,7 +491,7 @@ router.put("/api/my-shares/folder/:id", requireLogin, async (req, res) => {
         const updateData = {};
         if (permissions) updateData.permissions = permissions;
         if (expiryValue && expiryUnit) {
-            const expirySeconds = parseExpiry(expiryValue, expiryUnit, 3600);
+            const expirySeconds = parseExpiry(expiryValue, expiryUnit, 60);
             updateData.expiryTime = Math.floor(Date.now() / 1000) + expirySeconds;
         }
 

@@ -52,11 +52,12 @@ router.get("/share/:linkId", async (req, res) => {
             const range = req.headers.range;
             const isEncrypted = head.Metadata && head.Metadata.encrypted === "true";
             const version = head.Metadata && head.Metadata.version ? head.Metadata.version : "1";
+            const cryptoKey = head.Metadata && head.Metadata.originalkey ? head.Metadata.originalkey : linkData.filePath;
 
             if (!range) {
                 res.writeHead(200, { "Content-Length": total, "Content-Type": "video/" + extension });
                 const s3Stream = s3.getObject({ Bucket: BUCKET, Key: linkData.filePath }).createReadStream();
-                if (isEncrypted) s3Stream.pipe(getCryptoStream(linkData.filePath, 0, version)).pipe(res);
+                if (isEncrypted) s3Stream.pipe(getCryptoStream(cryptoKey, 0, version)).pipe(res);
                 else s3Stream.pipe(res);
             } else {
                 const parts = range.replace(/bytes=/, "").split("-");
@@ -69,17 +70,18 @@ router.get("/share/:linkId", async (req, res) => {
                     "Content-Type": "video/" + extension,
                 });
                 const s3Stream = s3.getObject({ Bucket: BUCKET, Key: linkData.filePath, Range: `bytes=${start}-${end}` }).createReadStream();
-                if (isEncrypted) s3Stream.pipe(getCryptoStream(linkData.filePath, start, version)).pipe(res);
+                if (isEncrypted) s3Stream.pipe(getCryptoStream(cryptoKey, start, version)).pipe(res);
                 else s3Stream.pipe(res);
             }
         } else {
             const head = await s3.headObject({ Bucket: BUCKET, Key: linkData.filePath }).promise();
             const isEncrypted = head.Metadata && head.Metadata.encrypted === "true";
             const version = head.Metadata && head.Metadata.version ? head.Metadata.version : "1";
+            const cryptoKey = head.Metadata && head.Metadata.originalkey ? head.Metadata.originalkey : linkData.filePath;
 
             res.attachment(filename);
             const s3Stream = s3.getObject({ Bucket: BUCKET, Key: linkData.filePath }).createReadStream();
-            if (isEncrypted) s3Stream.pipe(getCryptoStream(linkData.filePath, 0, version)).pipe(res);
+            if (isEncrypted) s3Stream.pipe(getCryptoStream(cryptoKey, 0, version)).pipe(res);
             else s3Stream.pipe(res);
         }
 
