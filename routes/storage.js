@@ -45,12 +45,32 @@ router.get("/", requireLogin, checkSharedAccess, async (req, res) => {
             }
         }
 
+        let lastLoginLocation = null;
+        let userApiKey = null;
+        let userUid = null;
+        if (req.session.user && req.session.user.uid) {
+            userUid = req.session.user.uid;
+            const userSnap = await get(ref(db, `users/${userUid}`));
+            if (userSnap.exists()) {
+                const userData = userSnap.val();
+                lastLoginLocation = userData.lastLoginLocation || null;
+                userApiKey = userData.apiKey || null;
+            }
+        }
+
+        if (userUid && !userApiKey) {
+            userApiKey = require("crypto").randomBytes(32).toString('hex');
+            await update(ref(db, `users/${userUid}`), { apiKey: userApiKey });
+        }
+
         res.render("index", {
             files,
             folders: combinedFolders,
             currentPath: req.query.path || "",
             userEmail: req.session.user.email,
             sharedId: req.query.sharedId || "",
+            lastLoginLocation: JSON.stringify(lastLoginLocation),
+            userApiKey: userApiKey || "no-key",
             firebaseConfig: {
                 apiKey: process.env.FIREBASE_API_KEY,
                 authDomain: process.env.FIREBASE_AUTH_DOMAIN,
@@ -223,11 +243,26 @@ router.get("/download/:filename", requireLogin, checkSharedAccess, async (req, r
 router.post("/api/universal-upload", upload.single("file"), async (req, res) => {
     try {
         const { apiKey, userFolder } = req.query;
-        if (!apiKey || apiKey !== universalApiKey) return res.status(403).json({ error: "Invalid API key" });
+        if (!apiKey) return res.status(403).json({ error: "Missing API key" });
         if (!req.file) return res.status(400).json({ error: "File required" });
-        if (!userFolder) return res.status(400).json({ error: "Target folder required" });
 
-        const folderPath = userFolder.replace(/^\//, "").replace(/\/$/, "") + "/";
+        const usersSnap = await get(ref(db, "users"));
+        let foundUser = null;
+        if (usersSnap.exists()) {
+            usersSnap.forEach(snap => {
+                const val = snap.val();
+                if (val && val.apiKey === apiKey && val.email) {
+                    foundUser = val;
+                }
+            });
+        }
+
+        if (!foundUser) return res.status(403).json({ error: "Invalid API key" });
+
+        const baseFolder = foundUser.email.replace(/[@.]/g, "_") + "/";
+        let subFolder = userFolder ? userFolder.replace(/^\//, "").replace(/\/$/, "") + "/" : "API-Uploads/";
+
+        const folderPath = baseFolder + subFolder;
         await ensureFolderExists(folderPath);
         const filename = req.file.originalname.replace(/\.{2}/g, "");
         const key = folderPath + filename;
@@ -239,6 +274,18 @@ router.post("/api/universal-upload", upload.single("file"), async (req, res) => 
         res.json({ message: "File uploaded successfully", key });
     } catch (err) {
         console.error("API Upload Error:", err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ---------------- Regenerate API Key ----------------
+router.post("/api/generate-key", requireLogin, async (req, res) => {
+    try {
+        if (!req.session.user || !req.session.user.uid) return res.status(401).json({ error: "Not logged in" });
+        const newKey = require("crypto").randomBytes(32).toString('hex');
+        await update(ref(db, `users/${req.session.user.uid}`), { apiKey: newKey });
+        res.json({ apiKey: newKey });
+    } catch (err) {
         res.status(500).json({ error: err.message });
     }
 });

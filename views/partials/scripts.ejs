@@ -1,339 +1,339 @@
 <script>
-        function debugLog(msg) {
-            console.log("[DEBUG]", msg);
-            const consoleEl = document.getElementById('debugConsole');
-            consoleEl.style.display = 'block';
-            const logEntry = document.createElement('div');
-            logEntry.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
-            consoleEl.appendChild(logEntry);
-            consoleEl.scrollTop = consoleEl.scrollHeight;
-        }
+    function debugLog(msg) {
+        console.log("[DEBUG]", msg);
+        const consoleEl = document.getElementById('debugConsole');
+        consoleEl.style.display = 'block';
+        const logEntry = document.createElement('div');
+        logEntry.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+        consoleEl.appendChild(logEntry);
+        consoleEl.scrollTop = consoleEl.scrollHeight;
+    }
 
-        const currentPath = "<%= currentPath || '' %>";
-        const sharedId = "<%= sharedId || '' %>";
+    const currentPath = "<%= currentPath || '' %>";
+    const sharedId = "<%= sharedId || '' %>";
 
-        // Permission check for shared folders
-        if (sharedId && sharedId !== "undefined" && sharedId !== "") {
-            fetch(`/api/check-permissions?sharedId=${encodeURIComponent(sharedId)}`)
-                .then(res => res.json())
-                .then(data => {
-                    if (!data.upload) {
-                        document.getElementById('uploadSection').style.display = 'none';
-                        document.getElementById('createFolderBtn').style.display = 'none';
-                    }
-                    if (!data.delete) {
-                        document.querySelectorAll('.delete-file, .delete-folder').forEach(btn => {
-                            btn.style.display = 'none';
-                        });
-                    }
-                    if (!data.download) {
-                        document.querySelectorAll('.download-file').forEach(btn => {
-                            btn.style.display = 'none';
-                        });
-                    }
-                })
-                .catch(err => console.error('Permission check failed:', err));
-        }
-
-        // Upload
-        const uploadBtn = document.getElementById('uploadBtn');
-        const fileInput = document.getElementById('fileInput');
-        const progressContainer = document.getElementById('progressContainer');
-        const progressBar = document.getElementById('progressBar');
-
-        uploadBtn.addEventListener('click', async () => {
-            if (!fileInput.files.length) return alert("Select at least one file first!");
-            const files = Array.from(fileInput.files);
-
-            uploadBtn.disabled = true;
-            progressContainer.style.display = 'block';
-            let uploadedCount = 0;
-            let totalCount = files.length;
-
-            // This needs to match backend session secret, injected or passed
-            // For production you encrypt with a stable key
-            const sessionKey = "default_secret_key_123456";
-
-            for (let i = 0; i < files.length; i++) {
-                const file = files[i];
-                try {
-                    uploadBtn.textContent = `Processing file ${i + 1} of ${totalCount}... 0%`;
-                    progressBar.style.width = '0%';
-
-                    const CHUNK_SIZE = 5 * 1024 * 1024;
-                    const parts = Math.ceil(file.size / CHUNK_SIZE);
-
-                    debugLog(`Init Multipart Upload: ${file.name} (${file.size} bytes, ${parts} parts)`);
-
-                    // 1) Initialize Multipart
-                    debugLog("Creating Multipart Upload ID and generating signed URLs securely...");
-                    const initRes = await fetch(`/upload/multipart/create?path=${encodeURIComponent(currentPath)}&sharedId=${encodeURIComponent(sharedId)}`, {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ fileName: file.name, contentType: file.type, fileSize: file.size })
-                    });
-                    if (!initRes.ok) throw new Error(await initRes.text());
-                    const { uploadId, key, preSignedUrls, fileKeyHex } = await initRes.json();
-
-                    // 3) Offload payload encryption and XHR PUTs to Web Worker
-                    await new Promise((resolve, reject) => {
-                        const worker = new Worker('/cryptoWorker.js');
-
-                        worker.onmessage = async (e) => {
-                            if (e.data.type === 'progress') {
-                                const chunk = e.data.chunk;
-                                const total = e.data.total;
-                                const percent = Math.round((chunk / total) * 100);
-                                progressBar.style.width = percent + '%';
-                                uploadBtn.textContent = `Uploading file ${i + 1} of ${totalCount}... ${percent}%`;
-                            } else if (e.data.type === 'complete') {
-                                debugLog('Worker finished chunks. Tag length: ' + e.data.etags.length);
-                                worker.terminate();
-
-                                // 4) Complete Multipart Upload & Commit HMAC
-                                debugLog('Completing Multipart on Backend...');
-                                const completeRes = await fetch(`/upload/multipart/complete?path=${encodeURIComponent(currentPath)}&sharedId=${encodeURIComponent(sharedId)}`, {
-                                    method: "POST",
-                                    headers: { "Content-Type": "application/json" },
-                                    body: JSON.stringify({ key, uploadId, parts: e.data.etags, hmac: e.data.hmac })
-                                });
-                                if (!completeRes.ok) return reject(new Error(await completeRes.text()));
-
-                                // Update hls queue to mark as processing (if it's video, existing feature support)
-                                try {
-                                    await fetch('/upload/complete', {
-                                        method: 'POST',
-                                        headers: { 'Content-Type': 'application/json' },
-                                        body: JSON.stringify({ key })
-                                    });
-                                } catch (e) { }
-
-                                debugLog("Upload flow finished.");
-                                resolve();
-                            } else if (e.data.type === 'error') {
-                                worker.terminate();
-                                reject(new Error("Worker Error: " + e.data.error));
-                            }
-                        };
-
-                        worker.postMessage({
-                            file: file,
-                            uploadId: uploadId,
-                            key: key,
-                            preSignedUrls: preSignedUrls,
-                            fileKeyHex: fileKeyHex
-                        });
-                    });
-
-                    uploadedCount++;
-                } catch (err) {
-                    console.error(err);
-                    alert(`Error uploading ${file.name}: ${err.message}`);
-                    break;
+    // Permission check for shared folders
+    if (sharedId && sharedId !== "undefined" && sharedId !== "") {
+        fetch(`/api/check-permissions?sharedId=${encodeURIComponent(sharedId)}`)
+            .then(res => res.json())
+            .then(data => {
+                if (!data.upload) {
+                    document.getElementById('uploadSection').style.display = 'none';
+                    document.getElementById('createFolderBtn').style.display = 'none';
                 }
+                if (!data.delete) {
+                    document.querySelectorAll('.delete-file, .delete-folder').forEach(btn => {
+                        btn.style.display = 'none';
+                    });
+                }
+                if (!data.download) {
+                    document.querySelectorAll('.download-file').forEach(btn => {
+                        btn.style.display = 'none';
+                    });
+                }
+            })
+            .catch(err => console.error('Permission check failed:', err));
+    }
+
+    // Upload
+    const uploadBtn = document.getElementById('uploadBtn');
+    const fileInput = document.getElementById('fileInput');
+    const progressContainer = document.getElementById('progressContainer');
+    const progressBar = document.getElementById('progressBar');
+
+    uploadBtn.addEventListener('click', async () => {
+        if (!fileInput.files.length) return alert("Select at least one file first!");
+        const files = Array.from(fileInput.files);
+
+        uploadBtn.disabled = true;
+        progressContainer.style.display = 'block';
+        let uploadedCount = 0;
+        let totalCount = files.length;
+
+        // This needs to match backend session secret, injected or passed
+        // For production you encrypt with a stable key
+        const sessionKey = "default_secret_key_123456";
+
+        for (let i = 0; i < files.length; i++) {
+            const file = files[i];
+            try {
+                uploadBtn.textContent = `Processing file ${i + 1} of ${totalCount}... 0%`;
+                progressBar.style.width = '0%';
+
+                const CHUNK_SIZE = 5 * 1024 * 1024;
+                const parts = Math.ceil(file.size / CHUNK_SIZE);
+
+                debugLog(`Init Multipart Upload: ${file.name} (${file.size} bytes, ${parts} parts)`);
+
+                // 1) Initialize Multipart
+                debugLog("Creating Multipart Upload ID and generating signed URLs securely...");
+                const initRes = await fetch(`/upload/multipart/create?path=${encodeURIComponent(currentPath)}&sharedId=${encodeURIComponent(sharedId)}`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ fileName: file.name, contentType: file.type, fileSize: file.size })
+                });
+                if (!initRes.ok) throw new Error(await initRes.text());
+                const { uploadId, key, preSignedUrls, fileKeyHex } = await initRes.json();
+
+                // 3) Offload payload encryption and XHR PUTs to Web Worker
+                await new Promise((resolve, reject) => {
+                    const worker = new Worker('/cryptoWorker.js');
+
+                    worker.onmessage = async (e) => {
+                        if (e.data.type === 'progress') {
+                            const chunk = e.data.chunk;
+                            const total = e.data.total;
+                            const percent = Math.round((chunk / total) * 100);
+                            progressBar.style.width = percent + '%';
+                            uploadBtn.textContent = `Uploading file ${i + 1} of ${totalCount}... ${percent}%`;
+                        } else if (e.data.type === 'complete') {
+                            debugLog('Worker finished chunks. Tag length: ' + e.data.etags.length);
+                            worker.terminate();
+
+                            // 4) Complete Multipart Upload & Commit HMAC
+                            debugLog('Completing Multipart on Backend...');
+                            const completeRes = await fetch(`/upload/multipart/complete?path=${encodeURIComponent(currentPath)}&sharedId=${encodeURIComponent(sharedId)}`, {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ key, uploadId, parts: e.data.etags, hmac: e.data.hmac })
+                            });
+                            if (!completeRes.ok) return reject(new Error(await completeRes.text()));
+
+                            // Update hls queue to mark as processing (if it's video, existing feature support)
+                            try {
+                                await fetch('/upload/complete', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ key })
+                                });
+                            } catch (e) { }
+
+                            debugLog("Upload flow finished.");
+                            resolve();
+                        } else if (e.data.type === 'error') {
+                            worker.terminate();
+                            reject(new Error("Worker Error: " + e.data.error));
+                        }
+                    };
+
+                    worker.postMessage({
+                        file: file,
+                        uploadId: uploadId,
+                        key: key,
+                        preSignedUrls: preSignedUrls,
+                        fileKeyHex: fileKeyHex
+                    });
+                });
+
+                uploadedCount++;
+            } catch (err) {
+                console.error(err);
+                alert(`Error uploading ${file.name}: ${err.message}`);
+                break;
             }
-
-            if (uploadedCount > 0) {
-                uploadBtn.textContent = uploadedCount === totalCount ? 'All Uploads Complete!' : 'Partial Upload Complete!';
-                setTimeout(() => location.reload(), 1200);
-            } else {
-                uploadBtn.disabled = false;
-                uploadBtn.textContent = 'Upload';
-            }
-        });
-
-        // Share modal logic
-        let currentFileToShare = null,
-            currentFolderToShare = null;
-
-        function openShareModal(name, isFolder = false) {
-            document.getElementById('modalFilename').textContent = name;
-            currentFileToShare = isFolder ? null : name;
-            currentFolderToShare = isFolder ? name : null;
-            document.getElementById('folderPermissions').style.display = isFolder ? 'block' : 'none';
-            document.getElementById('fileShareOptions').style.display = isFolder ? 'none' : 'block';
-            document.getElementById('shareModal').style.display = 'flex';
         }
 
-        function closeShareModal() {
-            document.getElementById('shareModal').style.display = 'none';
+        if (uploadedCount > 0) {
+            uploadBtn.textContent = uploadedCount === totalCount ? 'All Uploads Complete!' : 'Partial Upload Complete!';
+            setTimeout(() => location.reload(), 1200);
+        } else {
+            uploadBtn.disabled = false;
+            uploadBtn.textContent = 'Upload';
+        }
+    });
+
+    // Share modal logic
+    let currentFileToShare = null,
+        currentFolderToShare = null;
+
+    function openShareModal(name, isFolder = false) {
+        document.getElementById('modalFilename').textContent = name;
+        currentFileToShare = isFolder ? null : name;
+        currentFolderToShare = isFolder ? name : null;
+        document.getElementById('folderPermissions').style.display = isFolder ? 'block' : 'none';
+        document.getElementById('fileShareOptions').style.display = isFolder ? 'none' : 'block';
+        document.getElementById('shareModal').style.display = 'flex';
+    }
+
+    function closeShareModal() {
+        document.getElementById('shareModal').style.display = 'none';
+    }
+
+    document.getElementById('closeShareBtn').addEventListener('click', closeShareModal);
+
+    document.getElementById('geofenceCheckbox').addEventListener('change', (e) => {
+        document.getElementById('geofenceOptions').style.display = e.target.checked ? 'block' : 'none';
+    });
+
+    document.getElementById('confirmShareBtn').addEventListener('click', async () => {
+        const expiryValue = document.getElementById('expiryValueInput').value;
+        const expiryUnit = document.getElementById('expiryUnitSelect').value;
+        const useGeofence = document.getElementById('geofenceCheckbox').checked;
+        const radiusKm = document.getElementById('radiusInput').value;
+
+        if (!expiryValue || !expiryUnit) {
+            alert('Fill all fields');
+            return;
+        }
+        closeShareModal();
+
+        let url;
+        let queryParams = new URLSearchParams();
+        queryParams.append('expiryValue', expiryValue);
+        queryParams.append('expiryUnit', expiryUnit);
+
+        if (useGeofence) {
+            try {
+                const pos = await new Promise((resolve, reject) => {
+                    navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true });
+                });
+                queryParams.append('userLat', pos.coords.latitude);
+                queryParams.append('userLng', pos.coords.longitude);
+                queryParams.append('radiusKm', radiusKm);
+            } catch (err) {
+                alert("⚠️ Geolocation permission denied or failed. Sharing without geofence.");
+                // Continue without geofence parameters
+            }
         }
 
-        document.getElementById('closeShareBtn').addEventListener('click', closeShareModal);
+        if (currentFileToShare) {
+            const maxDownloads = document.getElementById('maxDownloadsInput').value;
+            const perIpLimit = document.getElementById('perIpLimitInput').value;
+            queryParams.append('max', maxDownloads);
+            queryParams.append('perIpLimit', perIpLimit);
+            queryParams.append('path', currentPath);
+            url = `/api/share/${encodeURIComponent(currentFileToShare)}?${queryParams.toString()}`;
+        } else if (currentFolderToShare) {
+            const permDownload = document.getElementById('permDownload').checked;
+            const permUpload = document.getElementById('permUpload').checked;
+            const permDelete = document.getElementById('permDelete').checked;
+            const recipientEmail = document.getElementById('recipientEmailInput').value;
 
-        document.getElementById('geofenceCheckbox').addEventListener('change', (e) => {
-            document.getElementById('geofenceOptions').style.display = e.target.checked ? 'block' : 'none';
-        });
-
-        document.getElementById('confirmShareBtn').addEventListener('click', async () => {
-            const expiryValue = document.getElementById('expiryValueInput').value;
-            const expiryUnit = document.getElementById('expiryUnitSelect').value;
-            const useGeofence = document.getElementById('geofenceCheckbox').checked;
-            const radiusKm = document.getElementById('radiusInput').value;
-
-            if (!expiryValue || !expiryUnit) {
-                alert('Fill all fields');
+            if (!recipientEmail) {
+                alert('Recipient email is required for folder sharing');
                 return;
             }
-            closeShareModal();
 
-            let url;
-            let queryParams = new URLSearchParams();
-            queryParams.append('expiryValue', expiryValue);
-            queryParams.append('expiryUnit', expiryUnit);
+            queryParams.append('accessEmail', encodeURIComponent(recipientEmail));
+            queryParams.append('permDownload', permDownload);
+            queryParams.append('permUpload', permUpload);
+            queryParams.append('permDelete', permDelete);
+            url = `/api/access/${currentFolderToShare}?${queryParams.toString()}`;
+        }
 
-            if (useGeofence) {
-                try {
-                    const pos = await new Promise((resolve, reject) => {
-                        navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true });
-                    });
-                    queryParams.append('userLat', pos.coords.latitude);
-                    queryParams.append('userLng', pos.coords.longitude);
-                    queryParams.append('radiusKm', radiusKm);
-                } catch (err) {
-                    alert("⚠️ Geolocation permission denied or failed. Sharing without geofence.");
-                    // Continue without geofence parameters
-                }
-            }
-
-            if (currentFileToShare) {
-                const maxDownloads = document.getElementById('maxDownloadsInput').value;
-                const perIpLimit = document.getElementById('perIpLimitInput').value;
-                queryParams.append('max', maxDownloads);
-                queryParams.append('perIpLimit', perIpLimit);
-                queryParams.append('path', currentPath);
-                url = `/api/share/${encodeURIComponent(currentFileToShare)}?${queryParams.toString()}`;
-            } else if (currentFolderToShare) {
-                const permDownload = document.getElementById('permDownload').checked;
-                const permUpload = document.getElementById('permUpload').checked;
-                const permDelete = document.getElementById('permDelete').checked;
-                const recipientEmail = document.getElementById('recipientEmailInput').value;
-
-                if (!recipientEmail) {
-                    alert('Recipient email is required for folder sharing');
-                    return;
-                }
-
-                queryParams.append('accessEmail', encodeURIComponent(recipientEmail));
-                queryParams.append('permDownload', permDownload);
-                queryParams.append('permUpload', permUpload);
-                queryParams.append('permDelete', permDelete);
-                url = `/api/access/${currentFolderToShare}?${queryParams.toString()}`;
-            }
-
-            try {
-                const res = await fetch(url);
-                const data = await res.json();
-                if (data.shareId) {
-                    if (currentFileToShare) {
-                        const shareUrl = `${window.location.origin}/share/${data.shareId}`;
-                        await navigator.clipboard.writeText(shareUrl);
-                        alert("✅ File link created & copied:\n" + shareUrl);
-                    } else {
-                        alert(`✅ Folder shared successfully with ${document.getElementById('recipientEmailInput').value}`);
-                    }
-                    location.reload();
+        try {
+            const res = await fetch(url);
+            const data = await res.json();
+            if (data.shareId) {
+                if (currentFileToShare) {
+                    const shareUrl = `${window.location.origin}/share/${data.shareId}`;
+                    await navigator.clipboard.writeText(shareUrl);
+                    alert("✅ File link created & copied:\n" + shareUrl);
                 } else {
-                    alert("❌ Error sharing: " + data.error);
+                    alert(`✅ Folder shared successfully with ${document.getElementById('recipientEmailInput').value}`);
                 }
-            } catch (err) {
-                alert("⚠️ " + err.message);
+                location.reload();
+            } else {
+                alert("❌ Error sharing: " + data.error);
             }
-        });
+        } catch (err) {
+            alert("⚠️ " + err.message);
+        }
+    });
 
-        // Folder button
-        document.getElementById('createFolderBtn').addEventListener('click', () => {
-            const folderName = prompt("Enter folder name:")?.trim();
-            if (!folderName) return;
+    // Folder button
+    document.getElementById('createFolderBtn').addEventListener('click', () => {
+        const folderName = prompt("Enter folder name:")?.trim();
+        if (!folderName) return;
 
-            let url = `/folder/create`;
-            const params = new URLSearchParams();
+        let url = `/folder/create`;
+        const params = new URLSearchParams();
 
-            if (currentPath) params.append('path', currentPath);
-            if (sharedId && sharedId !== 'undefined') params.append('sharedId', sharedId);
+        if (currentPath) params.append('path', currentPath);
+        if (sharedId && sharedId !== 'undefined') params.append('sharedId', sharedId);
 
-            if (params.toString()) {
-                url += '?' + params.toString();
-            }
+        if (params.toString()) {
+            url += '?' + params.toString();
+        }
 
-            fetch(url, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded'
-                },
-                body: `folderName=${encodeURIComponent(folderName)}`
-            }).then(res => {
-                if (res.ok) location.reload();
-                else alert('Failed to create folder');
-            }).catch(err => alert('Error: ' + err.message));
-        });
+        fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded'
+            },
+            body: `folderName=${encodeURIComponent(folderName)}`
+        }).then(res => {
+            if (res.ok) location.reload();
+            else alert('Failed to create folder');
+        }).catch(err => alert('Error: ' + err.message));
+    });
 
-        // Event delegation for folder/file actions
-        document.addEventListener('click', e => {
-            // Handle step back button
-            if (e.target.classList.contains('step-back-btn')) {
-                const pathParts = currentPath.split('/').filter(Boolean);
-                pathParts.pop();
-                const parentPath = pathParts.join('/') + (pathParts.length ? '/' : '');
-                const url = sharedId && sharedId !== 'undefined' ?
-                    `/?sharedId=${encodeURIComponent(sharedId)}&path=${encodeURIComponent(parentPath)}` :
-                    `/?path=${encodeURIComponent(parentPath)}`;
+    // Event delegation for folder/file actions
+    document.addEventListener('click', e => {
+        // Handle step back button
+        if (e.target.classList.contains('step-back-btn')) {
+            const pathParts = currentPath.split('/').filter(Boolean);
+            pathParts.pop();
+            const parentPath = pathParts.join('/') + (pathParts.length ? '/' : '');
+            const url = sharedId && sharedId !== 'undefined' ?
+                `/?sharedId=${encodeURIComponent(sharedId)}&path=${encodeURIComponent(parentPath)}` :
+                `/?path=${encodeURIComponent(parentPath)}`;
+            window.location = url;
+        }
+        // Handle folder clicks in sidebar
+        else if (e.target.closest('.folder-item') &&
+            (e.target.classList.contains('folder-name') ||
+                e.target.closest('.folder-item').querySelector('.folder-name') === e.target) &&
+            !e.target.classList.contains('shared-by')) {
+            const folderItem = e.target.closest('.folder-item');
+            const folder = folderItem.dataset.folder;
+
+            if (sharedId && sharedId !== 'undefined') {
+                const url = `/?sharedId=${encodeURIComponent(sharedId)}&path=${encodeURIComponent(currentPath + folder + '/')}`;
                 window.location = url;
-            }
-            // Handle folder clicks in sidebar
-            else if (e.target.closest('.folder-item') &&
-                (e.target.classList.contains('folder-name') ||
-                    e.target.closest('.folder-item').querySelector('.folder-name') === e.target) &&
-                !e.target.classList.contains('shared-by')) {
-                const folderItem = e.target.closest('.folder-item');
-                const folder = folderItem.dataset.folder;
-
-                if (sharedId && sharedId !== 'undefined') {
-                    const url = `/?sharedId=${encodeURIComponent(sharedId)}&path=${encodeURIComponent(currentPath + folder + '/')}`;
+            } else {
+                const shareIdElement = folderItem.querySelector('span[data-share-id]');
+                if (shareIdElement) {
+                    const shareId = shareIdElement.getAttribute('data-share-id');
+                    const url = `/?sharedId=${encodeURIComponent(shareId)}`;
                     window.location = url;
                 } else {
-                    const shareIdElement = folderItem.querySelector('span[data-share-id]');
-                    if (shareIdElement) {
-                        const shareId = shareIdElement.getAttribute('data-share-id');
-                        const url = `/?sharedId=${encodeURIComponent(shareId)}`;
-                        window.location = url;
-                    } else {
-                        const url = `/?path=${encodeURIComponent(currentPath + folder + '/')}`;
-                        window.location = url;
-                    }
+                    const url = `/?path=${encodeURIComponent(currentPath + folder + '/')}`;
+                    window.location = url;
                 }
             }
-            // Handle file and folder actions
-            else if (e.target.classList.contains('share-file')) {
-                openShareModal(e.target.dataset.name, false);
-            } else if (e.target.classList.contains('share-folder')) {
-                openShareModal(e.target.dataset.name, true);
-            } else if (e.target.classList.contains('delete-folder')) {
-                if (confirm('Delete this folder?')) {
-                    window.location = `/delete/${e.target.dataset.name}?path=${currentPath}${sharedId ? '&sharedId=' + sharedId : ''}`;
-                }
-            } else if (e.target.classList.contains('delete-file')) {
-                if (confirm('Delete this file?')) {
-                    window.location = `/delete/${e.target.dataset.name}?path=${currentPath}${sharedId ? '&sharedId=' + sharedId : ''}`;
-                }
-            } else if (e.target.classList.contains('download-file')) {
-                const filename = e.target.dataset.name;
-                window.location = `/download/${filename}?path=${currentPath}${sharedId ? '&sharedId=' + sharedId : ''}`;
+        }
+        // Handle file and folder actions
+        else if (e.target.classList.contains('share-file')) {
+            openShareModal(e.target.dataset.name, false);
+        } else if (e.target.classList.contains('share-folder')) {
+            openShareModal(e.target.dataset.name, true);
+        } else if (e.target.classList.contains('delete-folder')) {
+            if (confirm('Delete this folder?')) {
+                window.location = `/delete/${e.target.dataset.name}?path=${currentPath}${sharedId ? '&sharedId=' + sharedId : ''}`;
             }
-        });
+        } else if (e.target.classList.contains('delete-file')) {
+            if (confirm('Delete this file?')) {
+                window.location = `/delete/${e.target.dataset.name}?path=${currentPath}${sharedId ? '&sharedId=' + sharedId : ''}`;
+            }
+        } else if (e.target.classList.contains('download-file')) {
+            const filename = e.target.dataset.name;
+            window.location = `/download/${filename}?path=${currentPath}${sharedId ? '&sharedId=' + sharedId : ''}`;
+        }
+    });
 
-        // Manage shares
-        document.getElementById('btnManageShares').addEventListener('click', async () => {
-            document.getElementById('manageSharesModal').style.display = 'flex';
-            const res = await fetch('/api/my-shares');
-            const data = await res.json();
+    // Manage shares
+    document.getElementById('btnManageShares').addEventListener('click', async () => {
+        document.getElementById('manageSharesModal').style.display = 'flex';
+        const res = await fetch('/api/my-shares');
+        const data = await res.json();
 
-            const now = Math.floor(Date.now() / 1000);
+        const now = Math.floor(Date.now() / 1000);
 
-            const fCont = document.getElementById('sharedFoldersContainer');
-            fCont.innerHTML = data.folders.map(f => {
-                const isExp = f.expiryTime && f.expiryTime < now;
-                return `
+        const fCont = document.getElementById('sharedFoldersContainer');
+        fCont.innerHTML = data.folders.map(f => {
+            const isExp = f.expiryTime && f.expiryTime < now;
+            return `
                 <div style="background:var(--alt-bg); padding:10px; margin-bottom:5px; border-radius:5px;">
                     <strong>${f.folderPath}</strong> (to: ${f.accessTo}) ${isExp ? '<span style="color:#ff4444; margin-left:5px;">(Expired)</span>' : ''}
                     <br>Expires <input type="number" id="f-exp-${f.id}" value="24" style="width:50px"> <select id="f-unit-${f.id}"><option value="h">Hrs</option><option value="d">Days</option></select>
@@ -342,10 +342,10 @@
                 </div>
             `}).join('') || 'No folders shared';
 
-            const lCont = document.getElementById('sharedLinksContainer');
-            lCont.innerHTML = data.links.map(l => {
-                const isExp = l.expiryTime && l.expiryTime < now;
-                return `
+        const lCont = document.getElementById('sharedLinksContainer');
+        lCont.innerHTML = data.links.map(l => {
+            const isExp = l.expiryTime && l.expiryTime < now;
+            return `
                 <div style="background:var(--alt-bg); padding:10px; margin-bottom:5px; border-radius:5px;">
                     <strong>${l.filePath.split('/').pop()}</strong> - Downloads: ${l.downloadsUsed || 0}/${l.maxDownloads} ${isExp ? '<span style="color:#ff4444; margin-left:5px;">(Expired)</span>' : ''}
                     | IP Limit: <input type="number" id="l-iplimit-${l.id}" value="${l.perIpLimit}" style="width:40px">
@@ -357,96 +357,173 @@
                     <button class="btn" style="background:#0066cc;" onclick='showHeatmap(${JSON.stringify(l.downloadLocations || [])})'>Heatmap (${(l.downloadLocations || []).length})</button>
                 </div>
             `}).join('') || 'No links shared';
+    });
+
+    document.getElementById('closeManageSharesBtn').addEventListener('click', () => {
+        document.getElementById('manageSharesModal').style.display = 'none';
+    });
+
+    document.getElementById('closeHeatmapBtn').addEventListener('click', () => {
+        document.getElementById('heatmapModal').style.display = 'none';
+    });
+
+    window.updateFolderShare = async (id) => {
+        const val = document.getElementById(`f-exp-${id}`).value;
+        const unit = document.getElementById(`f-unit-${id}`).value;
+        await fetch(`/api/my-shares/folder/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ expiryValue: val, expiryUnit: unit })
         });
+        alert('Timing updated!');
+    };
+    window.revokeFolderShare = async (id) => {
+        if (!confirm('Revoke this folder share?')) return;
+        await fetch(`/api/my-shares/folder/${id}`, { method: 'DELETE' });
+        document.getElementById('btnManageShares').click();
+    };
 
-        document.getElementById('closeManageSharesBtn').addEventListener('click', () => {
-            document.getElementById('manageSharesModal').style.display = 'none';
+    window.updateLinkShare = async (id) => {
+        const val = document.getElementById(`l-exp-${id}`).value;
+        const unit = document.getElementById(`l-unit-${id}`).value;
+        const max = document.getElementById(`l-max-${id}`).value;
+        const ip = document.getElementById(`l-iplimit-${id}`).value;
+        await fetch(`/api/my-shares/link/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ expiryValue: val, expiryUnit: unit, maxDownloads: max, perIpLimit: ip })
         });
+        alert('Settings updated!');
+    };
+    window.revokeLinkShare = async (id) => {
+        if (!confirm('Revoke this link share?')) return;
+        await fetch(`/api/my-shares/link/${id}`, { method: 'DELETE' });
+        document.getElementById('btnManageShares').click();
+    };
 
-        document.getElementById('closeHeatmapBtn').addEventListener('click', () => {
-            document.getElementById('heatmapModal').style.display = 'none';
-        });
+    let myMap = null, heatLayer = null, markersLayer = null;
+    window.showHeatmap = (locations) => {
+        document.getElementById('heatmapModal').style.display = 'flex';
+        if (!myMap) {
+            myMap = L.map('map').setView([20, 0], 2);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18 }).addTo(myMap);
+            markersLayer = L.layerGroup().addTo(myMap);
+        }
+        if (heatLayer) myMap.removeLayer(heatLayer);
+        markersLayer.clearLayers();
 
-        window.updateFolderShare = async (id) => {
-            const val = document.getElementById(`f-exp-${id}`).value;
-            const unit = document.getElementById(`f-unit-${id}`).value;
-            await fetch(`/api/my-shares/folder/${id}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ expiryValue: val, expiryUnit: unit })
-            });
-            alert('Timing updated!');
-        };
-        window.revokeFolderShare = async (id) => {
-            if (!confirm('Revoke this folder share?')) return;
-            await fetch(`/api/my-shares/folder/${id}`, { method: 'DELETE' });
-            document.getElementById('btnManageShares').click();
-        };
+        setTimeout(() => {
+            myMap.invalidateSize();
+            const validLocations = locations.filter(loc => loc && loc.lat && loc.lng);
 
-        window.updateLinkShare = async (id) => {
-            const val = document.getElementById(`l-exp-${id}`).value;
-            const unit = document.getElementById(`l-unit-${id}`).value;
-            const max = document.getElementById(`l-max-${id}`).value;
-            const ip = document.getElementById(`l-iplimit-${id}`).value;
-            await fetch(`/api/my-shares/link/${id}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ expiryValue: val, expiryUnit: unit, maxDownloads: max, perIpLimit: ip })
-            });
-            alert('Settings updated!');
-        };
-        window.revokeLinkShare = async (id) => {
-            if (!confirm('Revoke this link share?')) return;
-            await fetch(`/api/my-shares/link/${id}`, { method: 'DELETE' });
-            document.getElementById('btnManageShares').click();
-        };
+            if (validLocations.length > 0) {
+                const heatData = validLocations.map(loc => [loc.lat, loc.lng, 1]);
 
-        let myMap = null, heatLayer = null, markersLayer = null;
-        window.showHeatmap = (locations) => {
-            document.getElementById('heatmapModal').style.display = 'flex';
-            if (!myMap) {
-                myMap = L.map('map').setView([20, 0], 2);
-                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18 }).addTo(myMap);
-                markersLayer = L.layerGroup().addTo(myMap);
-            }
-            if (heatLayer) myMap.removeLayer(heatLayer);
-            markersLayer.clearLayers();
-
-            setTimeout(() => {
-                myMap.invalidateSize();
-                const validLocations = locations.filter(loc => loc && loc.lat && loc.lng);
-
-                if (validLocations.length > 0) {
-                    const heatData = validLocations.map(loc => [loc.lat, loc.lng, 1]);
-
-                    // If we only have a few points, make them super visible with a marker + heatmap
-                    if (validLocations.length <= 3) {
-                        validLocations.forEach(loc => {
-                            L.marker([loc.lat, loc.lng]).addTo(markersLayer)
-                                .bindPopup(`Download Location<br>IP: ${loc.ip || 'Unknown'}`);
-                        });
-                        // make heatmap blotches thicker for small data
-                        heatLayer = L.heatLayer(heatData, { radius: 35, blur: 15, maxZoom: 17 }).addTo(myMap);
-                    } else {
-                        heatLayer = L.heatLayer(heatData, { radius: 25, blur: 15, maxZoom: 17 }).addTo(myMap);
-                    }
-
-                    // Auto-zoom to fit the bounds of all points
-                    const bounds = L.latLngBounds(validLocations.map(loc => [loc.lat, loc.lng]));
-                    myMap.fitBounds(bounds, { maxZoom: 10, padding: [20, 20] });
-
+                // If we only have a few points, make them super visible with a marker + heatmap
+                if (validLocations.length <= 3) {
+                    validLocations.forEach(loc => {
+                        L.marker([loc.lat, loc.lng]).addTo(markersLayer)
+                            .bindPopup(`Download Location<br>IP: ${loc.ip || 'Unknown'}`);
+                    });
+                    // make heatmap blotches thicker for small data
+                    heatLayer = L.heatLayer(heatData, { radius: 35, blur: 15, maxZoom: 17 }).addTo(myMap);
                 } else {
-                    alert('No location data available yet.');
+                    heatLayer = L.heatLayer(heatData, { radius: 25, blur: 15, maxZoom: 17 }).addTo(myMap);
                 }
+
+                // Auto-zoom to fit the bounds of all points
+                const bounds = L.latLngBounds(validLocations.map(loc => [loc.lat, loc.lng]));
+                myMap.fitBounds(bounds, { maxZoom: 10, padding: [20, 20] });
+
+            } else {
+                alert('No location data available yet.');
+            }
+        }, 200);
+    };
+    // Settings Modal
+    let settingsMap = null;
+    let loginMarker = null;
+    let _rawLoc = '<%- typeof lastLoginLocation !== "undefined" ? lastLoginLocation : "null" %>';
+    const serverLastLoginLocation = _rawLoc !== "null" ? JSON.parse(_rawLoc) : null;
+
+    document.getElementById('btnSettings').addEventListener('click', () => {
+        document.getElementById('settingsModal').style.display = 'flex';
+
+        // Initialize or load map lazily
+        const lat = serverLastLoginLocation ? serverLastLoginLocation.lat : null;
+        const lng = serverLastLoginLocation ? serverLastLoginLocation.lng : null;
+        const statusEl = document.getElementById('loginLocationStatus');
+
+        if (lat && lng) {
+            statusEl.textContent = `Coordinates: ${lat}, ${lng}`;
+            if (!settingsMap) {
+                settingsMap = L.map('loginLocationMap').setView([lat, lng], 14); // Zoom level 14
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18 }).addTo(settingsMap);
+                loginMarker = L.marker([lat, lng]).addTo(settingsMap)
+                    .bindPopup(`Last Login Location`).openPopup();
+            } else {
+                settingsMap.setView([lat, lng], 14);
+                loginMarker.setLatLng([lat, lng]);
+            }
+
+            // Need to invalidate size after modal displays
+            setTimeout(() => {
+                settingsMap.invalidateSize();
             }, 200);
-        };
-    </script>
-    <script>
-        window.FIREBASE_CONFIG = {
-            apiKey: "<%= firebaseConfig.apiKey %>",
-            authDomain: "<%= firebaseConfig.authDomain %>",
-            databaseURL: "<%= firebaseConfig.databaseURL %>",
-            projectId: "<%= firebaseConfig.projectId %>"
-        };
-    </script>
-    <script type="module" src="/webrtcShare.js"></script>
+        } else {
+            statusEl.textContent = "No recent location data available.";
+        }
+    });
+
+    document.getElementById('closeSettingsBtn').addEventListener('click', () => {
+        document.getElementById('settingsModal').style.display = 'none';
+    });
+
+    document.getElementById('btnGenerateApiCommand').addEventListener('click', () => {
+        const apiKeyValue = document.getElementById('apiKeyValue').value;
+        let folder = document.getElementById('apiKeyFolder').value.trim();
+        if (!folder) folder = "API-Uploads";
+
+        const originBase = window.location.origin;
+        const cmdObj = `curl -X POST "${originBase}/api/universal-upload?apiKey=${encodeURIComponent(apiKeyValue)}&userFolder=${encodeURIComponent(folder)}" -F "file=@/path/to/your/file.txt"`;
+
+        document.getElementById('apiCommandOutputContainer').style.display = 'block';
+        const outputArea = document.getElementById('apiCommandOutput');
+        outputArea.value = cmdObj;
+        outputArea.select();
+    });
+
+    document.getElementById('btnRegenerateKey').addEventListener('click', async () => {
+        if (!confirm('Are you sure? Existing API keys will be immediately revoked.')) return;
+        try {
+            const btn = document.getElementById('btnRegenerateKey');
+            btn.disabled = true;
+            btn.innerHTML = 'Generating...';
+            const res = await fetch('/api/generate-key', { method: 'POST' });
+            const data = await res.json();
+            if (data.apiKey) {
+                document.getElementById('apiKeyValue').value = data.apiKey;
+                alert('API Key regenerated securely.');
+                document.getElementById('apiCommandOutputContainer').style.display = 'none';
+            } else {
+                alert('Error: ' + data.error);
+            }
+        } catch (err) {
+            alert('Error regenerating key: ' + err.message);
+        } finally {
+            const btn = document.getElementById('btnRegenerateKey');
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-sync-alt"></i> Regenerate';
+        }
+    });
+
+</script>
+<script>
+    window.FIREBASE_CONFIG = {
+        apiKey: "<%= firebaseConfig.apiKey %>",
+        authDomain: "<%= firebaseConfig.authDomain %>",
+        databaseURL: "<%= firebaseConfig.databaseURL %>",
+        projectId: "<%= firebaseConfig.projectId %>"
+    };
+</script>
+<script type="module" src="/webrtcShare.js"></script>
