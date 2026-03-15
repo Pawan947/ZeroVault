@@ -10,7 +10,7 @@
     "test": "jest --passWithNoTests"
   },
   "dependencies": {
-    "@simplewebauthn/browser": "^13.2.2",
+    "@simplewebauthn/browser": "^13.3.0",
     "@simplewebauthn/server": "^13.2.2",
     "aws-sdk": "^2.1693.0",
     "base64url": "^3.0.1",
