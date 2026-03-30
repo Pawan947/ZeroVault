@@ -35,29 +35,31 @@
             .catch(err => console.error('Permission check failed:', err));
     }
 
-    // ── High-Speed Upload Engine ──────────────────────────────────────────
-    const uploadBtn        = document.getElementById('uploadBtn');
-    const fileInput        = document.getElementById('fileInput');
+    // ── Maximum-Speed Upload Engine ───────────────────────────────────────
+    const uploadBtn         = document.getElementById('uploadBtn');
+    const fileInput         = document.getElementById('fileInput');
     const progressContainer = document.getElementById('progressContainer');
-    const progressBar      = document.getElementById('progressBar');
-    const uploadStatus     = document.getElementById('uploadStatus');
-
-    // Chunk size must match cryptoWorker.js CHUNK_SIZE (8 MB)
-    const CHUNK_SIZE = 8 * 1024 * 1024;
+    const progressBar       = document.getElementById('progressBar');
+    const uploadStatus      = document.getElementById('uploadStatus');
 
     function fmtBytes(b) {
-        if (b < 1024)         return b + ' B';
-        if (b < 1024 * 1024)  return (b / 1024).toFixed(1) + ' KB';
-        if (b < 1024 ** 3)    return (b / 1024 / 1024).toFixed(1) + ' MB';
-        return (b / 1024 / 1024 / 1024).toFixed(2) + ' GB';
+        if (b < 1024)        return b + ' B';
+        if (b < 1048576)     return (b / 1024).toFixed(1) + ' KB';
+        if (b < 1073741824)  return (b / 1048576).toFixed(1) + ' MB';
+        return (b / 1073741824).toFixed(2) + ' GB';
     }
-
     function fmtSpeed(bps) {
-        if (!bps) return '';
-        if (bps < 1024 * 1024) return `${(bps/1024).toFixed(0)} KB/s`;
-        return `${(bps/1024/1024).toFixed(1)} MB/s`;
+        if (!bps)            return '';
+        if (bps < 1048576)   return `${(bps/1024).toFixed(0)} KB/s`;
+        return `${(bps/1048576).toFixed(1)} MB/s`;
     }
-
+    function fmtEta(remainBytes, bps) {
+        if (!bps || !remainBytes) return '';
+        const sec = remainBytes / bps;
+        if (sec < 60)  return `${Math.ceil(sec)}s`;
+        if (sec < 3600) return `${Math.floor(sec/60)}m ${Math.ceil(sec%60)}s`;
+        return `${Math.floor(sec/3600)}h ${Math.floor((sec%3600)/60)}m`;
+    }
     function setStatus(msg, color) {
         if (!uploadStatus) return;
         uploadStatus.textContent = msg;
@@ -78,64 +80,68 @@
 
         let uploadedCount = 0;
 
-        for (let i = 0; i < files.length; i++) {
-            const file  = files[i];
-            const label = `[${i + 1}/${totalCount}] ${file.name}`;
+        for (let fi = 0; fi < files.length; fi++) {
+            const file  = files[fi];
+            const label = totalCount > 1 ? `[${fi+1}/${totalCount}] ${file.name}` : file.name;
 
             try {
-                const parts = Math.ceil(file.size / CHUNK_SIZE);
-                debugLog(`Init multipart: ${file.name} (${fmtBytes(file.size)}, ${parts} parts)`);
-                setStatus(`🔒 Initialising ${label}…`, '#aaa');
+                debugLog(`Init multipart: ${file.name} (${fmtBytes(file.size)})`);
+                setStatus(`🔒 Preparing ${label}…`, '#aaa');
                 progressBar.style.width = '0%';
 
-                // ── 1. Create multipart upload + get pre-signed URLs ──
+                // ── 1. Init multipart + fetch all pre-signed URLs from server ──
                 const initRes = await fetch(
                     `/upload/multipart/create?path=${encodeURIComponent(currentPath)}&sharedId=${encodeURIComponent(sharedId)}`,
                     {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
-                            fileName: file.name,
+                            fileName:    file.name,
                             contentType: file.type || 'application/octet-stream',
-                            fileSize: file.size
+                            fileSize:    file.size
                         })
                     }
                 );
                 if (!initRes.ok) throw new Error(await initRes.text());
                 const { uploadId, key, preSignedUrls, fileKeyHex } = await initRes.json();
 
-                // ── 2. Spawn worker – encrypt + upload concurrently ──
+                debugLog(`Got ${preSignedUrls.length} pre-signed URLs`);
+
+                // ── 2. Run pipeline worker (encrypt ∥ upload) ──
                 await new Promise((resolve, reject) => {
                     const worker = new Worker('/cryptoWorker.js');
+                    let encPct = 0;   // 0-50 (encryption contributes half the bar)
+                    let upPct  = 0;   // 0-50 (upload contributes other half)
 
                     worker.onmessage = async (ev) => {
                         const d = ev.data;
 
                         if (d.type === 'progress') {
                             if (d.phase === 'encrypt') {
-                                // Encryption phase: fill bar 0→40%
-                                const enc = Math.round((d.chunk / d.total) * 40);
-                                progressBar.style.width = enc + '%';
-                                setStatus(`🔐 Encrypting ${label} — chunk ${d.chunk}/${d.total}`, '#aaa');
+                                // Encrypt phase drives 0–50% of bar
+                                encPct = Math.round((d.bytesEncrypted / d.totalBytes) * 50);
+                                progressBar.style.width = Math.min(encPct + upPct, 99) + '%';
+                                setStatus(`🔐 Encrypting ${label} — ${fmtBytes(d.bytesEncrypted)} / ${fmtBytes(d.totalBytes)}`, '#aaa');
 
                             } else if (d.phase === 'upload') {
-                                // Upload phase: fill bar 40→100%
-                                const ratio  = d.bytesUploaded / (d.totalBytes || 1);
-                                const pct    = 40 + Math.round(ratio * 60);
+                                // Upload phase drives 50–99% of bar
+                                upPct = Math.round((d.bytesUploaded / d.totalBytes) * 50);
                                 const speed  = fmtSpeed(d.speedBps);
-                                progressBar.style.width = Math.min(pct, 99) + '%';
+                                const eta    = fmtEta(d.totalBytes - d.bytesUploaded, d.speedBps);
+                                progressBar.style.width = Math.min(encPct + upPct, 99) + '%';
                                 setStatus(
-                                    `⚡ Uploading ${label} — ${fmtBytes(d.bytesUploaded)} / ${fmtBytes(d.totalBytes)}` +
-                                    (speed ? `  •  ${speed}` : ''),
+                                    `⚡ ${label} — ${fmtBytes(d.bytesUploaded)} / ${fmtBytes(d.totalBytes)}` +
+                                    (speed ? `  •  ${speed}` : '') +
+                                    (eta   ? `  •  ETA ${eta}` : ''),
                                     '#7eb6ff'
                                 );
                             }
 
                         } else if (d.type === 'complete') {
-                            debugLog(`Worker done: ${d.etags.length} ETags, HMAC=${d.hmac.slice(0,8)}…`);
+                            debugLog(`Worker done: ${d.etags.length} parts, HMAC=${d.hmac.slice(0,8)}…`);
                             worker.terminate();
 
-                            // ── 3. Finalise multipart on backend ──
+                            // ── 3. Finalise multipart upload on backend ──
                             setStatus(`✅ Finalising ${label}…`, '#6ee7a8');
                             const completeRes = await fetch(
                                 `/upload/multipart/complete?path=${encodeURIComponent(currentPath)}&sharedId=${encodeURIComponent(sharedId)}`,
@@ -147,7 +153,7 @@
                             );
                             if (!completeRes.ok) return reject(new Error(await completeRes.text()));
 
-                            // Notify HLS queue (video support)
+                            // Notify HLS/video pipeline (non-blocking)
                             fetch('/upload/complete', {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
@@ -155,27 +161,27 @@
                             }).catch(() => {});
 
                             progressBar.style.width = '100%';
-                            debugLog('Upload complete.');
                             resolve();
 
                         } else if (d.type === 'error') {
                             worker.terminate();
-                            reject(new Error('Worker: ' + d.error));
+                            reject(new Error(d.error));
                         }
                     };
 
                     worker.onerror = (err) => {
                         worker.terminate();
-                        reject(new Error('Worker crashed: ' + err.message));
+                        reject(new Error('Worker crashed: ' + (err.message || err)));
                     };
 
+                    // Transfer file using Transferable so worker gets it zero-copy
                     worker.postMessage({ file, uploadId, key, preSignedUrls, fileKeyHex });
                 });
 
                 uploadedCount++;
 
             } catch (err) {
-                console.error(err);
+                console.error('[Upload]', err);
                 setStatus(`❌ Failed: ${file.name} — ${err.message}`, '#f08080');
                 break;
             }
@@ -185,10 +191,9 @@
         if (uploadedCount > 0) {
             const allDone = uploadedCount === totalCount;
             setStatus(
-                allDone ? `🎉 All ${totalCount} file(s) uploaded!` : `⚠ ${uploadedCount}/${totalCount} uploaded.`,
+                allDone ? `🎉 All ${totalCount} file(s) uploaded successfully!` : `⚠ ${uploadedCount}/${totalCount} uploaded.`,
                 allDone ? '#6ee7a8' : '#ffcc00'
             );
-            // Restore button label then reload
             uploadBtn.innerHTML = '<span class="upload-icon">⬆</span> Upload';
             setTimeout(() => location.reload(), 1500);
         } else {
