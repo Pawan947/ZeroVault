@@ -1,0 +1,466 @@
+<head>
+    <title>Storage Dashboard</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
+    <style>
+        /* CSS Variables for consistency */
+        :root {
+            --primary-bg: #474545;
+            --header-bg: #3a3737;
+            --sidebar-bg: #2a2a2a;
+            --main-bg: #2a2a2a;
+            --alt-bg: #1a1a1a;
+            --border-color: #333;
+            --text-color: #eee;
+            --accent-color: #ffcc00;
+            --button-bg: #c00;
+            --button-hover: #900;
+            --modal-bg: #222;
+            --shadow-color: rgba(255, 0, 0, 0.5);
+            --transition: all 0.3s ease;
+        }
+
+        /* General */
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: var(--primary-bg);
+            color: var(--text-color);
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+
+        header {
+            background: var(--header-bg);
+            padding: 15px;
+            text-align: center;
+            font-size: 22px;
+            font-weight: bold;
+            width: 100%;
+            position: fixed;
+            top: 0;
+            left: 0;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .header-title {
+            margin-left: 10px;
+            flex: 1;
+            text-align: left;
+            color: #fe0000;
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-right: 40px;
+        }
+
+        .user-email {
+            font-size: 14px;
+            margin: 0;
+            color: var(--text-color);
+        }
+
+        .logout {
+            font-size: 14px;
+            padding: 6px 12px;
+            background: var(--button-bg);
+            color: var(--text-color);
+            border-radius: 5px;
+            text-decoration: none;
+            transition: var(--transition);
+        }
+
+        .logout:hover {
+            background: var(--button-hover);
+            box-shadow: 0 0 8px var(--shadow-color);
+        }
+
+        .container {
+            display: flex;
+            margin-top: 70px;
+            width: 100%;
+            flex: 1;
+        }
+
+        .main {
+            flex: 1;
+            padding: 20px;
+            margin-left: 270px;
+            overflow-x: auto;
+            min-height: calc(100vh - 70px);
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 250px;
+            background: var(--sidebar-bg);
+            padding: 20px;
+            position: fixed;
+            top: 70px;
+            bottom: 0;
+            overflow-y: auto;
+            border-right: 1px solid var(--border-color);
+            z-index: 500;
+        }
+
+        .sidebar h2 {
+            margin: 0 0 15px;
+            font-size: 18px;
+            color: var(--accent-color);
+        }
+
+        .step-back-btn {
+            display: block;
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 10px;
+            background: var(--button-bg);
+            color: var(--text-color);
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            text-align: left;
+            transition: var(--transition);
+        }
+
+        .step-back-btn:hover {
+            background: var(--button-hover);
+            box-shadow: 0 0 8px var(--shadow-color);
+        }
+
+        .folder-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            margin: 5px 0;
+            background: var(--alt-bg);
+            border-radius: 5px;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .folder-item:hover {
+            background: var(--main-bg);
+        }
+
+        .folder-item:hover .shared-by {
+            display: block;
+        }
+
+        /* Prevent tooltip from blocking clicks */
+
+        .folder-name {
+            font-weight: bold;
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            max-width: 140px;
+            position: relative;
+            /* required for tooltip */
+        }
+
+        /* Tooltip */
+        .shared-by {
+            pointer-events: none;
+        }
+
+        .folder-name:hover .shared-by {
+            display: block;
+        }
+
+        .folder-actions {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .folder-actions button {
+            padding: 4px 8px;
+            font-size: 12px;
+            margin-left: 5px;
+            background: var(--button-bg);
+            color: var(--text-color);
+            border-radius: 5px;
+            text-decoration: none;
+            transition: var(--transition);
+        }
+
+        .folder-actions a:hover,
+        .folder-actions button:hover {
+            background: var(--button-hover);
+            box-shadow: 0 0 8px var(--shadow-color);
+        }
+
+        .sidebar::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .sidebar::-webkit-scrollbar-track {
+            background: var(--alt-bg);
+        }
+
+        .sidebar::-webkit-scrollbar-thumb {
+            background: var(--accent-color);
+            border-radius: 4px;
+        }
+
+        /* Tables */
+        table {
+
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+
+        table th,
+        table td {
+            padding: 10px;
+            border: 1px solid var(--border-color);
+            text-align: left;
+        }
+
+        table th {
+            background: var(--modal-bg);
+        }
+
+        table tr:nth-child(even) {
+            background: var(--alt-bg);
+        }
+
+        table tr:nth-child(odd) {
+            background: var(--main-bg);
+        }
+
+        /* Buttons */
+        a.btn,
+        button {
+            display: inline-block;
+            padding: 6px 12px;
+            margin: 2px;
+            font-size: 14px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            text-decoration: none;
+            color: var(--text-color);
+            background: var(--button-bg);
+            transition: var(--transition);
+        }
+
+        a.btn:hover,
+        button:hover {
+            background: var(--button-hover);
+            box-shadow: 0 0 8px var(--shadow-color);
+        }
+
+        /* Upload */
+        .upload {
+            margin-bottom: 20px;
+            background: var(--main-bg);
+            padding: 20px;
+            border-radius: 10px;
+            width: 400px;
+            max-width: 90%;
+        }
+
+        input[type="file"] {
+            display: block;
+            width: 100%;
+            margin: 10px 0;
+            padding: 8px;
+            border-radius: 5px;
+            border: 1px solid var(--border-color);
+            background: var(--alt-bg);
+            color: var(--text-color);
+        }
+
+        input[type="file"]::file-selector-button {
+            background: var(--button-bg);
+            color: var(--text-color);
+            border: none;
+            padding: 6px 12px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        input[type="file"]::file-selector-button:hover {
+            background: var(--button-hover);
+        }
+
+        /* Progress bar */
+        #progressContainer {
+            display: none;
+            margin-top: 10px;
+            background: var(--border-color);
+            border-radius: 5px;
+            overflow: hidden;
+        }
+
+        #progressBar {
+            width: 0%;
+            height: 15px;
+            background: linear-gradient(90deg, var(--accent-color), #ff6600);
+            border-radius: 5px;
+            transition: width 0.2s ease;
+            box-shadow: 0 0 5px var(--accent-color);
+        }
+
+        /* Breadcrumb */
+        .breadcrumb a {
+            color: var(--accent-color);
+            text-decoration: none;
+            margin-right: 5px;
+            transition: var(--transition);
+        }
+
+        .breadcrumb a:hover {
+            text-decoration: underline;
+        }
+
+        /* Inputs */
+        input[type="email"],
+        input[type="number"],
+        select {
+            width: 90%;
+            margin: 5px 0;
+            padding: 6px;
+            border-radius: 5px;
+            border: 1px solid var(--border-color);
+            background: var(--alt-bg);
+            color: var(--text-color);
+        }
+
+        /* Floating button */
+        #createFolderBtn {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: var(--accent-color);
+            color: #000;
+            z-index: 600;
+            transition: var(--transition);
+        }
+
+        #createFolderBtn:hover {
+            background: #e6b800;
+            box-shadow: 0 0 8px var(--accent-color);
+        }
+
+        /* Modal */
+        #shareModal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+        }
+
+        #shareModal .modal-content {
+            background: var(--modal-bg);
+            padding: 20px;
+            border-radius: 10px;
+            width: 350px;
+            max-width: 90%;
+            text-align: center;
+        }
+
+        #folderPermissions {
+            display: none;
+            margin-top: 15px;
+            text-align: left;
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 768px) {
+            .sidebar {
+                width: 200px;
+            }
+
+            .main {
+                margin-left: 220px;
+            }
+
+            .header-right {
+                margin-right: 20px;
+            }
+        }
+
+        @media (max-width: 600px) {
+            .container {
+                flex-direction: column;
+            }
+
+            .sidebar {
+                position: static;
+                width: 100%;
+                border-right: none;
+                border-bottom: 1px solid var(--border-color);
+            }
+
+            .main {
+                margin-left: 0;
+                padding: 10px;
+            }
+
+            .upload {
+                width: 100%;
+            }
+
+            #createFolderBtn {
+                right: 10px;
+                bottom: 10px;
+            }
+
+            .header-right {
+                flex-wrap: wrap;
+                justify-content: center;
+                margin-right: 10px;
+                gap: 5px;
+            }
+
+            .user-email {
+                font-size: 12px;
+            }
+
+            .logout {
+                font-size: 12px;
+                padding: 4px 8px;
+            }
+        }
+
+        #debugConsole {
+            position: fixed;
+            bottom: 60px;
+            right: 20px;
+            width: 300px;
+            max-height: 200px;
+            background: rgba(0, 0, 0, 0.85);
+            color: #0f0;
+            font-family: monospace;
+            font-size: 11px;
+            padding: 10px;
+            border-radius: 5px;
+            overflow-y: auto;
+            z-index: 9999;
+            display: none;
+            border: 1px solid #333;
+        }
+    </style>
+</head>

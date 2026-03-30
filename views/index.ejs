@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<%- include('partials/head') %>
+
+<style>
+  /* ── Page-level overrides (index only) ── */
+
+  /* Reset body to use the design-system defaults (head.ejs already sets background/color) */
+  body {
+    background: var(--primary-bg);
+    color: var(--text-color);
+    font-family: 'Segoe UI', Arial, sans-serif;
+  }
+
+  /* Breadcrumb */
+  .breadcrumb {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-bottom: 22px;
+    font-size: 13px;
+    color: #aaa;
+  }
+
+  .breadcrumb a {
+    color: var(--accent-color);
+    text-decoration: none;
+    transition: var(--transition);
+  }
+
+  .breadcrumb a:hover {
+    text-decoration: underline;
+  }
+
+  .breadcrumb .sep {
+    color: #555;
+  }
+
+  /* ── Upload Card ── */
+  .upload-card {
+    background: var(--alt-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    padding: 20px 24px;
+    margin-bottom: 28px;
+    max-width: 560px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+  }
+
+  .upload-card h4 {
+    margin: 0 0 14px;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--accent-color);
+    letter-spacing: 0.5px;
+  }
+
+  .upload-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  /* File input – override head.ejs width:100% so it plays nicely in flex */
+  .upload-row input[type="file"] {
+    flex: 1;
+    min-width: 0;
+    margin: 0;
+    padding: 8px 10px;
+    background: var(--main-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    color: var(--text-color);
+    font-size: 13px;
+    cursor: pointer;
+  }
+
+  .upload-row input[type="file"]::file-selector-button {
+    background: var(--button-bg);
+    color: #fff;
+    border: none;
+    padding: 5px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+    transition: var(--transition);
+    margin-right: 8px;
+  }
+
+  .upload-row input[type="file"]::file-selector-button:hover {
+    background: var(--button-hover);
+  }
+
+  /* Upload button */
+  #uploadBtn {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 9px 20px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 600;
+    background: var(--button-bg);
+    color: #fff;
+    transition: var(--transition);
+    white-space: nowrap;
+  }
+
+  #uploadBtn:hover:not(:disabled) {
+    background: var(--button-hover);
+    box-shadow: 0 0 10px var(--shadow-color);
+  }
+
+  #uploadBtn:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+
+  #uploadBtn .upload-icon {
+    font-size: 15px;
+    line-height: 1;
+  }
+
+  /* Progress bar */
+  #progressContainer {
+    display: none;
+    margin-top: 14px;
+    background: var(--border-color);
+    border-radius: 6px;
+    overflow: hidden;
+    height: 8px;
+  }
+
+  #progressBar {
+    width: 0%;
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent-color), #ff6600);
+    border-radius: 6px;
+    transition: width 0.25s ease;
+    box-shadow: 0 0 6px var(--accent-color);
+  }
+
+  #uploadStatus {
+    margin-top: 8px;
+    font-size: 12px;
+    color: #aaa;
+    min-height: 16px;
+  }
+
+  /* ── Section heading ── */
+  .section-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px;
+  }
+
+  .section-heading h2 {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text-color);
+  }
+
+  /* ── File table ── */
+  .file-table-wrap {
+    overflow-x: auto;
+    border-radius: 10px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+  }
+
+  .file-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--main-bg);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+
+  .file-table th {
+    background: var(--alt-bg);
+    color: var(--accent-color);
+    padding: 13px 16px;
+    text-align: left;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.4px;
+    border-bottom: 1px solid var(--border-color);
+  }
+
+  .file-table td {
+    padding: 12px 16px;
+    border-top: 1px solid var(--border-color);
+    font-size: 13.5px;
+    color: var(--text-color);
+    vertical-align: middle;
+  }
+
+  .file-table tr:hover td {
+    background: rgba(255, 204, 0, 0.04);
+  }
+
+  .file-table .filename {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 500;
+  }
+
+  .file-icon {
+    font-size: 18px;
+    flex-shrink: 0;
+  }
+
+  .file-table .empty-row td {
+    text-align: center;
+    padding: 40px;
+    color: #777;
+    font-style: italic;
+  }
+
+  /* Action buttons inside table */
+  .action-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+  }
+
+  .action-group .btn {
+    padding: 5px 12px;
+    font-size: 12px;
+    border-radius: 5px;
+    border: none;
+    cursor: pointer;
+    text-decoration: none;
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    transition: var(--transition);
+    white-space: nowrap;
+  }
+
+  .btn-download {
+    background: #1a4a2e;
+    color: #6ee7a8;
+  }
+
+  .btn-download:hover {
+    background: #1f5e38;
+    box-shadow: 0 0 8px rgba(110, 231, 168, 0.3);
+  }
+
+  .btn-delete {
+    background: #4a1a1a;
+    color: #f08080;
+  }
+
+  .btn-delete:hover {
+    background: #5e2020;
+    box-shadow: 0 0 8px rgba(240, 128, 128, 0.3);
+  }
+
+  .btn-share {
+    background: #1a3060;
+    color: #7eb6ff;
+  }
+
+  .btn-share:hover {
+    background: #1f3f80;
+    box-shadow: 0 0 8px rgba(126, 182, 255, 0.3);
+  }
+
+  /* Responsive */
+  @media (max-width: 600px) {
+    .upload-card {
+      max-width: 100%;
+      padding: 16px;
+    }
+
+    .upload-row {
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    #uploadBtn {
+      width: 100%;
+      justify-content: center;
+    }
+
+    .file-table th,
+    .file-table td {
+      padding: 10px 10px;
+      font-size: 12px;
+    }
+  }
+</style>
+
+<body>
+
+<%- include('partials/header') %>
+
+<div class="page-wrapper">
+
+  <%- include('partials/sidebar') %>
+
+  <div class="main">
+
+    <!-- Breadcrumb -->
+    <nav class="breadcrumb" aria-label="breadcrumb">
+      <a href="<%= (sharedId && sharedId !== 'undefined') ? '/?sharedId='+sharedId : '/' %>">
+        🏠 Home
+      </a>
+
+      <% const parts = (currentPath || "").split("/").filter(Boolean); %>
+      <% let accumulated = ""; %>
+
+      <% parts.forEach((p, i) => { accumulated += p + "/"; %>
+        <span class="sep">/</span>
+        <a href="<%= (sharedId && sharedId !== 'undefined')
+          ? '/?sharedId=' + sharedId + '&path=' + encodeURIComponent(accumulated)
+          : '/?path=' + encodeURIComponent(accumulated) %>">
+          <%= p %>
+        </a>
+      <% }) %>
+    </nav>
+
+    <!-- Upload Card (hidden in shared view) -->
+    <% if (!sharedId || sharedId === 'undefined') { %>
+    <div class="upload-card" id="uploadSection">
+      <h4>⬆ Upload Files</h4>
+      <div class="upload-row">
+        <input type="file" id="fileInput" multiple>
+        <button id="uploadBtn" aria-label="Upload selected files">
+          <span class="upload-icon">⬆</span>
+          Upload
+        </button>
+      </div>
+      <div id="progressContainer">
+        <div id="progressBar" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+      </div>
+      <div id="uploadStatus"></div>
+    </div>
+    <% } %>
+
+    <!-- Files Section -->
+    <div class="section-heading">
+      <h2>📁 Files</h2>
+    </div>
+
+    <div class="file-table-wrap">
+      <table class="file-table">
+        <thead>
+          <tr>
+            <th>Filename</th>
+            <th>Size</th>
+            <th>Last Modified</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% if (files.length === 0) { %>
+          <tr class="empty-row">
+            <td colspan="4">No files uploaded yet. Upload your first file above!</td>
+          </tr>
+          <% } else { %>
+            <% files.forEach(f => { %>
+            <tr>
+              <td>
+                <div class="filename">
+                  <span class="file-icon">📄</span>
+                  <%= f.name %>
+                </div>
+              </td>
+              <td><%= f.size %></td>
+              <td><%= f.lastModified %></td>
+              <td>
+                <div class="action-group">
+                  <a class="btn btn-download download-file" data-name="<%= f.name %>" title="Download <%= f.name %>">
+                    ⬇ Download
+                  </a>
+                  <% if (!sharedId || sharedId === 'undefined') { %>
+                  <a class="btn btn-delete delete-file" data-name="<%= f.name %>" title="Delete <%= f.name %>">
+                    🗑 Delete
+                  </a>
+                  <button class="btn btn-share share-file" data-name="<%= f.name %>" title="Share <%= f.name %>">
+                    🔗 Share
+                  </button>
+                  <% } %>
+                </div>
+              </td>
+            </tr>
+            <% }) %>
+          <% } %>
+        </tbody>
+      </table>
+    </div>
+
+  </div><!-- /.main -->
+
+</div><!-- /.page-wrapper -->
+
+<%- include('partials/modals') %>
+<%- include('partials/scripts') %>
+
+</body>
+</html>
