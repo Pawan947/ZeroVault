@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HLS Video Player</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin-top: 30px;
+    }
+    video {
+      width: 80%;
+      max-width: 800px;
+      margin-top: 20px;
+      background-color: black;
+    }
+    ul {
+      list-style: none;
+      padding: 0;
+    }
+    li {
+      margin: 10px 0;
+    }
+    button {
+      padding: 8px 16px;
+      font-size: 14px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <h1>HLS Video Player</h1>
+  <ul id="videoList"></ul>
+  <video id="video" controls muted></video>
+
+  <!-- Firebase -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.6.0/firebase-app.js";
+    import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10.6.0/firebase-database.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyC0MtE1HGclFQuNVORwlszVttufUF7U-gc",
+      authDomain: "gameover-b8797.firebaseapp.com",
+      databaseURL: "https://gameover-b8797-default-rtdb.firebaseio.com",
+    };
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+
+    const videoListEl = document.getElementById("videoList");
+    const videoEl = document.getElementById("video");
+
+    // Listen for HLS queue
+    const hlsQueueRef = ref(db, "hlsQueue");
+    onValue(hlsQueueRef, snapshot => {
+      const data = snapshot.val();
+      videoListEl.innerHTML = ""; // clear previous list
+
+      if (!data) return;
+
+      Object.keys(data).forEach(videoId => {
+        const videoItem = data[videoId];
+        if (videoItem.status === "done" && videoItem.hlsUrl) {
+          const li = document.createElement("li");
+          const btn = document.createElement("button");
+          btn.textContent = videoId;
+          btn.addEventListener("click", () => playVideo(videoItem.hlsUrl));
+          li.appendChild(btn);
+          videoListEl.appendChild(li);
+        }
+      });
+    });
+
+    function playVideo(url) {
+      if (Hls.isSupported()) {
+        const hls = new Hls();
+        hls.loadSource(url);
+        hls.attachMedia(videoEl);
+        hls.on(Hls.Events.MANIFEST_PARSED, () => {
+          videoEl.play().catch(err => console.error("Play error:", err));
+        });
+      } else if (videoEl.canPlayType("application/vnd.apple.mpegurl")) {
+        videoEl.src = url;
+        videoEl.addEventListener("loadedmetadata", () => {
+          videoEl.play().catch(err => console.error("Play error:", err));
+        });
+      } else {
+        alert("HLS not supported in this browser.");
+      }
+    }
+  </script>
+
+  <!-- HLS.js -->
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+</body>
+</html>
