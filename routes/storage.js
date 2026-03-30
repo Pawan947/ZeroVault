@@ -103,7 +103,14 @@ router.post("/upload/multipart/create", requireLogin, checkSharedAccess, async (
             Metadata: { encrypted: "true", mode: "AES-256-CTR", version: "2" }
         }).promise();
 
-        const CHUNK_SIZE = 8 * 1024 * 1024;   // 8 MB – matches cryptoWorker.js
+        // Adaptive chunk size — must match cryptoWorker.js getChunkSize()
+        const MB = 1024 * 1024;
+        let CHUNK_SIZE;
+        if      (fileSize <  100 * MB) CHUNK_SIZE =  8 * MB;
+        else if (fileSize <  500 * MB) CHUNK_SIZE = 16 * MB;
+        else if (fileSize < 2048 * MB) CHUNK_SIZE = 32 * MB;
+        else                           CHUNK_SIZE = 64 * MB;
+
         const parts = Math.ceil(fileSize / CHUNK_SIZE);
         if (parts > 10000) return res.status(400).json({ error: "Too many parts required." });
 
@@ -114,7 +121,7 @@ router.post("/upload/multipart/create", requireLogin, checkSharedAccess, async (
                 Key: key,
                 PartNumber: i,
                 UploadId: multipartUpload.UploadId,
-                Expires: 4 * 3600   // 4 hours – handles large files with slow connections
+                Expires: 6 * 3600   // 6 hours — large parallel uploads need headroom
             });
             preSignedUrls.push(url);
         }
